@@ -1,0 +1,150 @@
+## Librerías
+
+Realizamos la carga de las librerías necesarias
+
+```{r, warning=FALSE}
+
+if(!is.element("dplyr", installed.packages()[, 1]))
+      install.packages("dplyr", repos = 'http://cran.us.r-project.org')
+library(dplyr)
+
+if(!is.element("tidyr", installed.packages()[, 1]))
+      install.packages("tidyr", repos = 'http://cran.us.r-project.org')
+library(tidyr)
+
+if(!is.element("ggplot2", installed.packages()[, 1]))
+      install.packages("ggplot2", repos = 'http://cran.us.r-project.org')
+library(ggplot2)
+
+if(!is.element("tibble", installed.packages()[, 1]))
+      install.packages("tibble", repos = 'http://cran.us.r-project.org')
+library(tibble)
+
+if(!is.element("randomForest", installed.packages()[, 1]))
+      install.packages("randomForest", repos = 'http://cran.us.r-project.org')
+library(randomForest)
+
+if(!is.element("recipes", installed.packages()[, 1]))
+      install.packages("recipes", repos = 'http://cran.us.r-project.org')
+library(recipes)
+
+if(!is.element("caret", installed.packages()[, 1]))
+      install.packages("caret", repos = 'http://cran.us.r-project.org')
+library(caret)
+
+```
+
+## Cargamos datos
+
+```{r}
+
+# Partimos de los dataset generados en la fase 2 
+# Repetimos el proceso de selección con distintos dataset de origen para poder comparar soluciones
+
+load('./F02_Datos/F02_01_dsDataAll.RData')
+
+```
+
+## Separamos los datos 
+
+Optenemos 4 dataset
+
+dsTrain - Que a su vez se divide en
+  dsTrain.training
+  dsTrain.CV 
+  
+dsTest
+
+```{r}
+
+dsTrain <- dsDataAll %>%
+  filter(indTrain == 1) %>%
+  select(SalePrice, everything()) %>%
+  select(-c(Id,indTrain))
+
+dim(dsTrain)
+
+set.seed(123)
+iTrain  <- createDataPartition(y=dsTrain$SalePrice, p=0.7, list=F)
+
+dsTrain.training <- dsTrain[iTrain, ]
+dsTrain.CV       <- dsTrain[-iTrain, ]
+
+dsTest <- dsDataAll %>%
+  filter(indTrain == 0) %>%
+  select(SalePrice, everything()) 
+
+rm(iTrain)
+```
+
+
+Carga ENTRENAMIENTOS
+
+```{r}
+load('./F03_SelPredictores/F02_01_dsDataAll/F03_1_rfe_lm.RData')
+load('./F03_SelPredictores/F02_01_dsDataAll/F03_2_rfe_rf.RData')
+load('./F03_SelPredictores/F02_01_dsDataAll/F03_3_ga_20.RData')
+load('./F03_SelPredictores/F02_01_dsDataAll/F03_4_ga_100.RData')
+load('./F03_SelPredictores/F02_01_dsDataAll/F03_5_sbf_lm.RData')
+load('./F03_SelPredictores/F02_01_dsDataAll/F03_6_sbf_rf.RData')
+```
+
+Estudio de resultados
+```{r}
+F03_003_ga_fs_20
+
+rf_rfe.results <- F03_001_rf_rfe$results
+
+# Métricas promedio de cada tamaño
+rf_rfe.results %>% 
+  group_by(Variables) %>%
+  summarise(media_RMSE = mean(RMSE), media_Rsquared = mean(Rsquared)) %>%
+  arrange(media_RMSE)
+
+# Gráfica de disminución de RMSE
+ggplot(data = rf_rfe.results, aes(x = Variables, y = RMSE)) +
+  geom_line() +
+  scale_x_continuous(breaks  = unique(rf_rfe.results$Variables)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = RMSE - RMSESD, ymax = RMSE + RMSESD),
+                width = 0.2) +
+  geom_point(data = rf_rfe.results %>% slice(which.min(RMSE)),
+             color = "red") +
+  theme_bw()
+```
+
+
+
+Comparación de variables seleccionadas según origen
+
+```{r}
+
+dsVarSel002 <- as.data.frame(F03_002_rf_rfe_boot$optVariables) %>%
+  rename(Campo = 1) %>%
+  rownames_to_column("Orden") %>%
+  mutate(Orden = as.numeric(Orden), Campo = as.character(Campo)) 
+                   
+```
+
+### Selección final de variables
+
+De los conjuntos de variables seleccionados cojo el que mejor
+
+
+```{r}
+
+dsVarSel <- dsVarSel002 %>% top_n(-40, Orden)
+
+dsDataAllVarSel <- dsDataAll %>% 
+    select(SalePrice, indTrain, Id, c(dsVarSel$Campo))
+
+```
+
+*Salvar progreso*
+```{r}
+
+
+save(dsDataAllVarSel, file = './F03_SelPredictores/F03_004_dsDataAllVarSel002_40Var.RData')
+# load('./F03_SelPredictores/F03_001_dsDataAllVarSel002_15Var.RData')
+
+```

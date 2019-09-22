@@ -1,0 +1,767 @@
+---
+title: "TFM - Kaggle House Prices: Advanced Regression Techniques with caret"
+subtitle: "04 Creación de modelos predictivos con caret"
+author: "Juan Carlos Santiago Culebras"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  #html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F, warning=F)
+```
+
+En esta fase aplicaremos distintos algoritmos de machine learning para generar modelos de regresión, que sean capaces de predecir la variable objetivo (SalePrice). 
+
+Existen multitud de algoritmos ya implementados para entrenar modelos de regresión, el paquete Caret simplifica la llamada ofreciendo un interfaz único. 
+
+# Primeros pasos 
+
+## Librerías
+
+Realizamos la carga de las librerías necesarias
+
+```{r,results='hide', message=F, warning=F}
+
+if(!is.element("dplyr", installed.packages()[, 1]))
+      install.packages("dplyr", repos = 'http://cran.us.r-project.org')
+library(dplyr)
+
+if(!is.element("tidyr", installed.packages()[, 1]))
+      install.packages("tidyr", repos = 'http://cran.us.r-project.org')
+library(tidyr)
+
+if(!is.element("ggplot2", installed.packages()[, 1]))
+      install.packages("ggplot2", repos = 'http://cran.us.r-project.org')
+library(ggplot2)
+
+if(!is.element("grid", installed.packages()[, 1]))
+      install.packages("grid", repos = 'http://cran.us.r-project.org')
+library(grid)
+
+if(!is.element("gridExtra", installed.packages()[, 1]))
+      install.packages("gridExtra", repos = 'http://cran.us.r-project.org')
+library(gridExtra)
+
+if(!is.element("ggpubr", installed.packages()[, 1]))
+      install.packages("ggpubr", repos = 'http://cran.us.r-project.org')
+library(ggpubr)
+
+if(!is.element("tibble", installed.packages()[, 1]))
+      install.packages("tibble", repos = 'http://cran.us.r-project.org')
+library(tibble)
+
+if(!is.element("randomForest", installed.packages()[, 1]))
+      install.packages("randomForest", repos = 'http://cran.us.r-project.org')
+library(randomForest)
+
+if(!is.element("recipes", installed.packages()[, 1]))
+      install.packages("recipes", repos = 'http://cran.us.r-project.org')
+library(recipes)
+
+if(!is.element("caret", installed.packages()[, 1]))
+      install.packages("caret", repos = 'http://cran.us.r-project.org')
+library(caret)
+
+if(!is.element("kernlab", installed.packages()[, 1]))
+      install.packages("kernlab", repos = 'http://cran.us.r-project.org')
+library(kernlab)
+
+if(!is.element("ranger", installed.packages()[, 1]))
+      install.packages("ranger", repos = 'http://cran.us.r-project.org')
+library(ranger)
+
+if(!is.element("gbm", installed.packages()[, 1]))
+      install.packages("gbm", repos = 'http://cran.us.r-project.org')
+library(gbm)
+
+if(!is.element("e1071", installed.packages()[, 1]))
+      install.packages("e1071", repos = 'http://cran.us.r-project.org')
+library(e1071)
+
+if(!is.element("elasticnet", installed.packages()[, 1]))
+      install.packages("elasticnet", repos = 'http://cran.us.r-project.org')
+library(elasticnet)
+
+if(!is.element("xgboost", installed.packages()[, 1]))
+	  install.packages("xgboost", repos = 'http://cran.us.r-project.org')
+library(xgboost)
+
+if(!is.element("glmnet", installed.packages()[, 1]))
+	  install.packages("glmnet", repos = 'http://cran.us.r-project.org')
+library(glmnet)
+
+```
+## Funciones
+
+```{r}
+
+fnEstudioModelo <- function ( modelo , estudioParam = TRUE){
+  
+  # modelo
+  # modelo$finalModel
+  
+  p1 <- ggplot(data = modelo$resample, aes(x = RMSE)) +
+        geom_density(alpha = 0.5, fill = "gray50") +
+        geom_vline(xintercept = mean(modelo$resample$RMSE),
+                   linetype = "dashed") +
+        theme_bw()
+
+  p2 <- ggplot(data = modelo$resample, aes(x = 1, y = RMSE)) +
+        geom_boxplot(outlier.shape = NA, alpha = 0.5, fill = "gray50") +
+        geom_jitter(width = 0.05) +
+        labs(x = "") +
+        theme_bw() +
+        theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+  #Estudio de hiperparámtros 
+  if (estudioParam){
+    p3 <- plot(modelo)  
+  }
+  
+  # Error de test
+  predicciones <- predict(modelo
+                          , newdata = dsTrain.CV
+                          , type = "raw")
+
+  # RMSE(predicciones, dsTrain.CV$SalePrice)
+  # MAE(predicciones, dsTrain.CV$SalePrice)
+  # R2(predicciones, dsTrain.CV$SalePrice, form = "traditional")
+  
+  
+  t1 <- capture.output(summary(modelo$resample$RMSE, digits=3))
+  t1 <- paste("Summary resample$RMSE", " ", paste(t1, collapse="\n"), sep = "\n")
+  t1 <- text_grob(t1, size = 10)
+  
+  t2 <- capture.output(postResample(pred = predicciones, obs = dsTrain.CV$SalePrice))
+  t2 <- paste("Error de test", " ", paste(t2, collapse="\n"), sep = "\n")
+  t2 <- text_grob(t2, size = 10)
+  
+  t3 <- capture.output(modelo$finalModel)
+  t3 <- text_grob(paste(t3, collapse="\n"), size = 9)
+  
+  grid.arrange(t3, top="Modelo final")
+  grid.arrange(p1, p2, t1, t2, nrow = 2, top="RMSE obtenido en la validación")
+  
+  if (estudioParam){
+    grid.arrange(p3, nrow = 1, top="Evolución del RMSE del modelo en función de hiperparámetros")
+  }
+  
+}
+
+
+```
+
+
+## Cargamos datos
+
+Partimos de un dataset, construido en las etapas anteriores, con los datos ya preparados y que contiene solo las variables predictivas.
+
+```{r}
+
+# Conjunto seleccionado en paso anterior
+
+strOrigenF2 <- 'F02_03_dsDataAll_Recipe'
+strOrigenF3 <- 'F03_11_dsDataSelVar_rfe_MejorRendimiento_top18'
+
+file <- paste('./F03_SelPredictores/',strOrigenF2,'/',strOrigenF3,'.RData',sep='')
+
+load(file)
+
+dirSalida <- paste('./F04_Modelos/',strOrigenF2,sep='')
+  
+if (!file.exists(dirSalida)){
+    dir.create(file.path(dirSalida))
+} 
+
+dirSalida <- paste('./F04_Modelos/',strOrigenF2,'/',strOrigenF3,sep='')
+  
+if (!file.exists(dirSalida)){
+    dir.create(file.path(dirSalida))
+} 
+
+rm(file)
+
+```
+
+Lectura de modelos ya entrenados si se realiza es estudio posteriormente
+```{r}
+# dir <- './F04_Modelos/F02_03_dsDataAll_Recipe/F03_15_dsDataSelVar_Completo/'
+# load(paste(dir,'modelo_gbm.RData',sep=''))
+# load(paste(dir,'modelo_glm.RData',sep=''))
+# load(paste(dir,'modelo_glmnet.RData',sep=''))
+# load(paste(dir,'modelo_Knn.RData',sep=''))
+# load(paste(dir,'modelo_lasso.RData',sep=''))
+# load(paste(dir,'modelo_lm.RData',sep=''))
+# load(paste(dir,'modelo_rf.RData',sep=''))
+# load(paste(dir,'modelo_svmlineal.RData',sep=''))
+# load(paste(dir,'modelo_svmRadial.RData',sep=''))
+# load(paste(dir,'modelo_XGBoost.RData',sep=''))
+
+```
+
+
+## Separamos los datos 
+
+Optenemos 4 dataset
+
+dsTrain - Que a su vez se divide en
+  dsTrain.training
+  dsTrain.CV 
+  
+dsTest
+
+```{r}
+
+dsTrain <- dsDataAllVarSel %>%
+  filter(indTrain == 1) %>%
+  select(SalePrice, everything()) %>%
+  select(-c(Id,indTrain))
+
+dim(dsTrain)
+
+set.seed(123)
+iTrain  <- createDataPartition(y=dsTrain$SalePrice, p=0.7, list=F)
+
+dsTrain.training <- dsTrain[iTrain, ]
+dsTrain.CV       <- dsTrain[-iTrain, ]
+
+dsTest <- dsDataAllVarSel %>%
+  filter(indTrain == 0) %>%
+  select(SalePrice, everything()) 
+
+```
+
+# Modelos
+
+En esta sección se entrenarán distintos modelos para evaluar cual puede ser el mejor.
+
+Sobre cada modelo se realizará: 
+
+* Entrenamiento
+* Ajuste de hiperparámetros
+* Evaluación mediante validación cruzada
+ 
+
+Definimos tipo de entrenamiento
+
+```{r}
+particiones  <- 5
+repeticiones <- 5
+
+# Entrenamiento con conjunto de hiperparametros
+fitControl <- trainControl(method = "repeatedcv", 
+                              number = particiones,
+                              repeats = repeticiones, 
+                              returnResamp = "final", 
+                              verboseIter = FALSE)
+```
+
+
+##	Regresión lineal
+
+En estos modelos se busca una función con los predictores como variables y una combinación de pesos que multiplicados por las variables den como resultado un modelo para la variable objetivo.
+
+Estos algoritmos son muy rápidos y responden bien cuando el número de predictores es alto.
+
+En nuestro caso hemos seleccionado dos ejemplos
+
+### Linear Regression
+
+Regresión lineal, este modelo es el más sencillo de probar y me ha servido como línea base para ir evaluando el resto de los modelos
+
+```{r}
+
+t <- proc.time() # Inicia el cronómetro
+modelo_lm <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "lm"
+                          #, tuneGrid = hiperparametros
+                          , tuneLength = 10
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_lm','.RData',sep='')
+save(modelo_lm, file = fileOuput)
+
+modelo_lm
+
+# Presento estudio 
+fnEstudioModelo(modelo_lm, estudioParam = FALSE)
+
+```
+
+### Generalized Linear Model
+
+Es una generalización flexible de la regresión lineal, permite que el modelo lineal se relacione con la variable de respuesta a través de una función de enlace. Este modelo parece más apto para nuestro problema ya que permite que la variable respuesta tenga una distribución arbitraria, nuestra variable es solo positiva y varia gran escala, es una distribución sesgada.
+
+```{r}
+
+hiperparametros <- data.frame(parameter = "none")
+
+t <- proc.time() # Inicia el cronómetro
+modelo_glm <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "glm"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_glm','.RData',sep='')
+save(modelo_glm, file = fileOuput)
+
+modelo_glm
+
+# Presento estudio 
+fnEstudioModelo(modelo_glm, estudioParam = FALSE)
+
+```
+
+
+## Support Vector Machines
+
+Aunque Las máquinas de vectores soporte fueron pensadas para resolver problemas de clasificación también pueden adaptarse para resolver problemas de regresión, estos modelos dan bastante buenos resultados cuando la variable objetivo no es separables linealmente dentro del espacio vectorial de los predictores y evitan en gran medida el problema del sobreajuste a los ejemplos de entrenamiento, por ello es una buena elección para este problema.
+
+Las máquinas de soporte utilizan una función denominada Kernel para la búsqueda del hiperplano de separación, para ello mapean los datos en espacios de dimensiones superiores con la esperanza de que en este espacio de dimensiones superiores los datos puedan separarse más fácilmente o estar mejor estructurados. 
+
+En nuestro caso hemos probado con dos modelos con funciones Kernel distintas:   
+
+
+### Support Vector Machines with Linear Kernel 
+
+Permite solo seleccionar líneas (o hiperplanos)
+
+```{r}
+hiperparametros <- data.frame(C = c(0.0001, 0.001, 0.01, 0.1, 0.5))
+
+t <- proc.time() # Inicia el cronómetro
+modelo_svmlineal <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "svmLinear"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl
+                          , scale = FALSE )
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_svmlineal','.RData',sep='')
+save(modelo_svmlineal, file = fileOuput)
+
+modelo_svmlineal
+
+# Presento estudio 
+fnEstudioModelo(modelo_svmlineal)
+
+```
+
+### Support Vector Machines with Radial Basis Function Kernel
+
+Permiten seleccionar círculos (o hiperesferas)
+
+```{r}
+
+hiperparametros <- expand.grid(sigma = c(0.0005, 0.001, 0.005)
+                               ,C = c(1 , 20, 50, 100, 150, 200))
+
+t <- proc.time() # Inicia el cronómetro
+modelo_svmRadial <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "svmRadial"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_svmRadial','.RData',sep='')
+save(modelo_svmRadial, file = fileOuput)
+
+modelo_svmRadial
+
+# Presento estudio 
+fnEstudioModelo(modelo_svmRadial)
+
+```
+
+## Arboles de decisión
+ 
+Estos modelos generan un conjunto de reglas para segmentar el espacio predictor en una serie de regiones simples, generando un árbol de decisiones.
+
+El método es simple y puede servir bien para la interpretación de los datos, pero no tiene una gran precisión en la predicción. Sin embargo, la combinación de una gran cantidad de árboles puede mejorar mucho la predicción.
+
+
+He realizado pruebas con:
+
+### XGBoost
+
+XGBoost ha sido uno de los modelos más utilizados, esto es así porque se adapta fácilmente ya que es muy flexible, se puede usar tanto en regresión como en clasificación. Utiliza una combinación de modelos más simples (árboles de decisión) y potencia los resultados.
+
+La gran desventaja de este modelo es el ajuste de su gran cantidad de parámetros. 
+
+```{r}
+
+hiperparametros <- expand.grid(
+  nrounds = seq(from = 200, to = 500, by = 50),
+  eta = c(0.025, 0.05, 0.1, 0.3),
+  max_depth = c(2, 3, 4, 5, 6),
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = 1,
+  subsample = 1
+)
+
+t <- proc.time() # Inicia el cronómetro
+modelo_XGBoost <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "xgbTree"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_XGBoost','.RData',sep='')
+save(modelo_XGBoost, file = fileOuput)
+
+modelo_XGBoost
+
+# Presento estudio 
+fnEstudioModelo(modelo_XGBoost, estudioParam = FALSE)
+
+```
+
+
+### Random Forest
+
+Utiliza una combinación de árboles, en este caso cada árbol depende de los valores de un vector aleatorio. 
+
+La ventaja de este método frente a XGBoost es que es más fácil de ajustar, aunque parece menos flexible. También en este modelo se ha detectado un sobreajuste al conjunto de entrenamiento, dando valores bastante buenos en los entrenamientos, pero bastante más altos en test.
+
+
+```{r}
+
+t <- proc.time() # Inicia el cronómetro
+modelo_rf <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "ranger"
+                          #, tuneGrid = hiperparametros
+                          , tuneLength = 10
+                          , metric = "RMSE"
+                          , trControl = fitControl
+                          , num.trees = 500)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_rf','.RData',sep='')
+save(modelo_rf, file = fileOuput)
+
+modelo_rf
+
+# Presento estudio 
+fnEstudioModelo(modelo_rf)
+
+```
+
+
+## Stochastic Gradient Boosting
+
+GBM realiza un proceso iterativo donde se introducen nuevos modelos que se basan en los errores de las iteraciones anteriores para minimizar el error (aumento de gradiente) de una función objetivo.
+
+Este método es muy versátil, pudiendo resolver una gran variedad de problemas, sus desventajas son que es sensible al sobreajuste, tiene un gran número de hiperparámetros, por lo que es complicado de ajustar y el tiempo de entrenamiento es bastante alto. 
+
+```{r}
+
+t <- proc.time() # Inicia el cronómetro
+hiperparametros <- expand.grid(interaction.depth = c(2,3),
+                               n.trees = c(2000, 3000, 4000),
+                               shrinkage = c( 0.01, 0.1),
+                               n.minobsinnode = c(2, 5, 10))
+
+t <- proc.time() # Inicia el cronómetro
+modelo_gbm <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "gbm"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          #, distribution
+                          , trControl = fitControl
+                          , verbose = FALSE # Para que no se muestre cada iteración por pantalla
+                    )
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_gbm','.RData',sep='')
+save(modelo_gbm, file = fileOuput)
+
+# Presento estudio 
+fnEstudioModelo(modelo_gbm)
+
+```
+
+## k-Nearest Neighbors
+
+Es un método tanto de clasificación como de regresión, bastante sencillo y supervisado, una característica principal es que está basado en instancia, esto quiere decir que no se genera un modelo real, sino que se guardan las observaciones. 
+
+El algoritmo busca las observaciones más cercanas a la que se está tratando y predice el valor de interés mediante los datos que le rodean. El parámetro k indica cuantos puntos “vecinos” se deben de tener en cuenta para ajustar.
+ 
+KNN tiende a funcionar mejor con dataset pequeños y con pocos predictores, ya que utiliza todo el conjunto de datos para entrenar.  Además, es muy costoso tanto en uso de CPU como en memoria. 
+
+
+```{r}
+
+hiperparametros <- data.frame(k = c(3:20))
+
+t <- proc.time() # Inicia el cronómetro
+modelo_knn <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "knn"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_knn','.RData',sep='')
+save(modelo_knn, file = fileOuput)
+
+modelo_knn
+
+# Presento estudio 
+fnEstudioModelo(modelo_knn)
+
+```
+
+## LASSO
+
+0perador de mínima contracción y selección absoluta. (least absolute shrinkage and selection operator) se utiliza para modelos de sistemas no lineales. 
+
+Realiza selección de variables y regularización para mejorar la exactitud e interpretabilidad del modelo. Establece algunos coeficientes a cero lo que permite eliminar variables. 
+
+
+```{r}
+
+hiperparametros <- expand.grid(fraction=c(1,0.1,0.01,0.001))
+
+t <- proc.time() # Inicia el cronómetro
+modelo_lasso <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "lasso"
+                          , tuneGrid = hiperparametros
+                          #, tuneLength = 10
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_lasso','.RData',sep='')
+save(modelo_lasso, file = fileOuput)
+
+modelo_lasso
+
+# Presento estudio 
+fnEstudioModelo(modelo_lasso, estudioParam = FALSE)
+
+```
+
+
+## Elasticnet
+
+Es una combinación de LASSO y Ridge regression, donde  predictores altamente correlacionados presentan coeficientes estimados similares. 
+
+```{r}
+
+hiperparametros <- expand.grid(alpha=seq(0,1,by=.5),lambda=seq(0,0.2,by=.1))
+
+t <- proc.time() # Inicia el cronómetro
+modelo_glmnet <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "glmnet"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'/','modelo_glmnet','.RData',sep='')
+save(modelo_glmnet, file = fileOuput)
+
+modelo_glmnet
+
+# Presento estudio 
+fnEstudioModelo(modelo_glmnet)
+
+```
+
+
+# Comparación de modelos
+
+En este punto trataremos de identificar cual de los modelos es mejor para ello tendremos en cuenta las metricas de validación calculadas en el entrenamiento y el error de test.
+
+Utilizare la función resamples() para extraer las metricas de los modelos entrenados.
+
+## Métricas
+```{r}
+
+# creamos una lista con los modelos entrenados
+modelos <- list(GBM = modelo_gbm
+                , GLM = modelo_glm
+                , LM = modelo_lm
+                , KNN = modelo_knn
+                , RF = modelo_rf
+                , SVM = modelo_svmlineal
+                , SVMR = modelo_svmRadial
+                , LASSO = modelo_lasso
+                , XGBoost = modelo_XGBoost
+                , GLMNET = modelo_glmnet)
+
+resultados_resamples <- resamples(modelos)
+
+# Se trasforma el dataframe devuelto por resamples() para separar el nombre del
+# modelo y las métricas en columnas distintas.
+metricas_resamples <- resultados_resamples$values %>%
+                         gather(key = "modelo", value = "valor", -Resample) %>%
+                         separate(col = "modelo", into = c("modelo", "metrica"),
+                                  sep = "~", remove = TRUE)
+
+# Se obtienen las medias por modelo
+metricas_resamples %>% 
+  group_by(modelo, metrica) %>% 
+  summarise(media = mean(valor)) %>%
+  spread(key = metrica, value = media) %>%
+  arrange(RMSE)
+```
+
+Comparativa gráfica
+
+```{r}
+dg <- metricas_resamples %>%
+  filter(metrica == "RMSE") %>%
+  group_by(modelo) %>% 
+  summarise(media = mean(valor)) 
+
+ggplot(dg, aes(x = reorder(modelo, media), y = media, label = round(media, 4))) +
+    geom_segment(aes(x = reorder(modelo, media), y = 0,
+                     xend = modelo, yend = media),
+                     color = "grey50") +
+    geom_point(size = 15, color = "blue") +
+    geom_text(color = "white", size = 3) +
+    scale_y_continuous(limits = c(0, 0.2)) +
+    labs(title = "Validación: RMSE medio repeated-CV",
+         subtitle = "Modelos ordenados por media",
+         x = "modelo") +
+    coord_flip() +
+    theme_bw()
+
+
+dg <-metricas_resamples %>% 
+  filter(metrica == "RMSE") %>%
+  group_by(modelo) %>% 
+  mutate(media = mean(valor)) %>%
+  ungroup() 
+
+ggplot(dg, aes(x = reorder(modelo, media), y = valor, color = modelo)) +
+    geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+    geom_jitter(width = 0.1, alpha = 0.6) +
+    scale_y_continuous(limits = c(0, 0.2)) +
+    labs(title = "Validación: RMSE medio repeated-CV",
+         subtitle = "Modelos ordenados por media") +
+    coord_flip() +
+    theme(legend.position = "none")
+```
+
+## Comparativas
+La función diff() hace comparaciones por pares aplicando un t-test pareado con correcciones por comparaciones múltiples. 
+
+```{r}
+difs <- diff(resultados_resamples)
+
+difs
+
+summary(difs)
+
+compare_models(modelo_svmRadial, modelo_glmnet)
+```
+
+
+## Error de test
+Utilizamos extractPrediction() para obtener las predicciones de una lista de modelos, que devuelve tanto para las observaciones de entrenamiento como para las de test.
+
+```{r}
+predicciones <- extractPrediction(
+                  models = modelos,
+                  testX = dsTrain.CV[, -1],
+                  testY = dsTrain.CV$SalePrice
+                  )
+
+metricas_tipo <- predicciones %>%
+                 group_by(object, dataType) %>%
+                 summarise(RMSE = RMSE(pred, obs)) %>%
+                 rename(modelo = object)
+
+metricas_tipo 
+
+metricas <- metricas_tipo %>%
+  spread(key = dataType, RMSE) %>%
+  arrange(Test) 
+
+metricas
+
+```
+
+```{r}
+ggplot(data = metricas_tipo,
+       aes(x = modelo, y = RMSE,
+           color = dataType, label = round(RMSE, 4))) +
+  geom_point(size = 15) +
+  scale_color_manual(values = c("orangered2", "gray50")) +
+  geom_text(color = "white", size = 3) +
+  scale_y_continuous(limits = c(0, 0.2)) +
+  coord_flip() +
+  labs(title = "RMSE de entrenamiento y test", 
+       x = "modelo") +
+  theme_bw() + 
+  theme(legend.position = "bottom")
+```
+
+
+
+# Métricas globales
+
+Guardamos resultados juntos con los ya existentes
+```{r}
+
+metricas
+
+# Cargamos metricas anteriores
+if (file.exists('./F04_Modelos/F04_200_metricas.RData')){
+  load('./F04_Modelos/F04_200_metricas.RData')
+}
+
+metricas <- mutate(metricas
+                   ,OrigenF2 = strOrigenF2
+                   ,OrigenF3 = strOrigenF3
+                   ,fch = Sys.Date())
+
+if (file.exists('./F04_Modelos/F04_200_metricas.RData')){
+  metricasGuardadas <- union_all(metricasGuardadas,metricas)
+} else{
+  metricasGuardadas <- metricas
+}
+metricasGuardadas <- as.data.frame(metricasGuardadas)
+save(metricasGuardadas, file = './F04_Modelos/F04_200_metricas.RData')
+
+# Top 10
+head(arrange(metricasGuardadas,Test),10)
+
+```
+
+
+
+
+

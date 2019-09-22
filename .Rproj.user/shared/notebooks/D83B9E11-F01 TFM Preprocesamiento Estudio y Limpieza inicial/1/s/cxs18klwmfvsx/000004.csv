@@ -1,0 +1,8 @@
+"0",""
+"0","dsDataAll <- dsDataAll %>% mutate(MSZoning = ifelse(MSZoning==""C (all)"",""C"",MSZoning))"
+"0",""
+"0","# RoofMatl	Tar&Grv"
+"0","dsDataAll %>%"
+"0","  select(RoofMatl) %>%"
+"0","  na.omit() %>% "
+"0","  count(RoofMatl)"

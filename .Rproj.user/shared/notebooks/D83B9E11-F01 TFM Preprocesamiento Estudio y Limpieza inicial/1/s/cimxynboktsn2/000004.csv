@@ -1,0 +1,7 @@
+"0",""
+"0","# NO IDENTIFICO OUTLIERS"
+"0","# Aunque hay 3 valores muy altos, parecen estar dentro de la tendencia tanto para el precio como para la suma de superficies."
+"0",""
+"0","rm(var)"
+"0","rm(a)"
+"0",""

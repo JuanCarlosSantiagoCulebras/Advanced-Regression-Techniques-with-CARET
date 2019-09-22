@@ -1,0 +1,8 @@
+"0","# Conjunto seleccionado en paso anterior"
+"0","load('./F04_Modelos/F04_200_metricas.RData')"
+"0",""
+"0","metricas <- metricasGuardadas %>% "
+"0","    filter(modelo!='KNN') %>%"
+"0","    mutate_if(is.character, as.factor) "
+"0",""
+"0","head(arrange(metricas,Test),10)"

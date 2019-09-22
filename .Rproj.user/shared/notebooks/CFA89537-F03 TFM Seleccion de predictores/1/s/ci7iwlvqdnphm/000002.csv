@@ -1,0 +1,6 @@
+"0","# load('./F03_SelPredictores/F02_01_dsDataAll/F03_1_rfe_lm.RData')"
+"0","# load('./F03_SelPredictores/F02_01_dsDataAll/F03_2_rfe_rf.RData')"
+"0","# load('./F03_SelPredictores/F02_01_dsDataAll/F03_3_ga_20.RData')"
+"0","# load('./F03_SelPredictores/F02_01_dsDataAll/F03_4_ga_100.RData')"
+"0","# load('./F03_SelPredictores/F02_01_dsDataAll/F03_5_sbf_lm.RData')"
+"0","# load('./F03_SelPredictores/F02_01_dsDataAll/F03_6_sbf_rf.RData')"

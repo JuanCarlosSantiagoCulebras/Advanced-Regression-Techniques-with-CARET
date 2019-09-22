@@ -1,0 +1,5 @@
+"0","metricasGuardadas <- as.date.frame(metricasGuardadas)
+"
+"2","Error in as.date.frame(metricasGuardadas) : 
+  could not find function ""as.date.frame""
+"

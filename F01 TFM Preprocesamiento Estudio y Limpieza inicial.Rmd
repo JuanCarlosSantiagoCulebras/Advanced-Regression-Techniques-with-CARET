@@ -1,0 +1,2039 @@
+---
+title: "TFM - Kaggle House Prices: Advanced Regression Techniques with caret"
+subtitle: "01 PREPROCESAMIENTO - Análisis y Limpieza inicial del conjunto de datos"
+author: "Juan Carlos Santiago Culebras"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  #html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F, warning=F)
+```
+
+El objetivo de esta etapa es realizar un estudio de los datos y realizar una primera limpieza, ha sido una fase muy costosa ya que implica entender el conjunto de datos tanto en su estructura como en su contenido. 
+
+
+# Primeros pasos 
+
+## Librerías
+
+Realizamos la carga de las librerías necesarias
+
+```{r results='hide', message=F, warning=F}
+
+if(!is.element("dplyr", installed.packages()[, 1]))
+      install.packages("dplyr", repos = 'http://cran.us.r-project.org')
+library(dplyr)
+
+if(!is.element("tidyr", installed.packages()[, 1]))
+      install.packages("tidyr", repos = 'http://cran.us.r-project.org')
+library(tidyr)
+
+if(!is.element("ggplot2", installed.packages()[, 1]))
+      install.packages("ggplot2", repos = 'http://cran.us.r-project.org')
+library(ggplot2)
+
+if(!is.element("tibble", installed.packages()[, 1]))
+      install.packages("tibble", repos = 'http://cran.us.r-project.org')
+library(tibble)
+
+# grid.arrange / marrangeGrob
+if(!is.element("gridExtra", installed.packages()[, 1]))
+      install.packages("gridExtra", repos = 'http://cran.us.r-project.org')
+library(gridExtra)
+
+
+if(!is.element("cowplot", installed.packages()[, 1]))
+      install.packages("cowplot", repos = 'http://cran.us.r-project.org')
+library(cowplot)
+
+if(!is.element("psych", installed.packages()[, 1]))
+      install.packages("psych", repos = 'http://cran.us.r-project.org')
+library(psych)
+
+# correlation matrixes - rcorr (niveles de significación)
+if(!is.element("Hmisc", installed.packages()[, 1]))
+      install.packages("Hmisc", repos = 'http://cran.us.r-project.org')
+library(Hmisc)
+
+# correlation matrixes - ggcorr
+if(!is.element("GGally", installed.packages()[, 1]))
+      install.packages("GGally", repos = 'http://cran.us.r-project.org')
+library(GGally)
+
+# correlation matrixes - corrplot
+if(!is.element("corrplot", installed.packages()[, 1]))
+      install.packages("corrplot", repos = 'http://cran.us.r-project.org')
+library(corrplot)
+
+if(!is.element("ggpubr", installed.packages()[, 1]))
+      install.packages("ggpubr", repos = 'http://cran.us.r-project.org')
+library(ggpubr)
+
+```
+
+## Funciones
+
+Función que permiten presentar gráficamente las variables y sus estadísticas de resumen, tendencia central, dispersión y forma.
+
+```{r results='hide', message=F, warning=F}
+
+ggplotHistogramaDensidad <- function (strCampo,ds) {
+  require(psych)
+  require(ggplot2)  
+  
+  # Estudio mas detallado medidas de dispersión con curtosis y sesgo
+  strDescribe = paste("d <- psych::describe(ds$",strCampo,")",sep = "")
+  eval(parse(text = paste(strDescribe)))
+  
+  title <- strCampo
+
+  t1 <- capture.output(summary(ds[,strCampo]))
+  t1 <- paste("Summary:", paste(t1, collapse="\n"), " ", sep = "\n")
+  t2 <- paste("Kurtosis:", signif(d$kurtosis,3)," / Skew:", signif(d$skew,3))
+  
+  subtitle <- paste(t1, t2, sep = "\n")
+
+  p1 <- ggplot(ds, aes(x=get(strCampo))) +
+    geom_histogram(aes(y=..density..), colour="black", fill = "white") +
+    geom_vline(aes(xintercept=mean(get(strCampo))),
+            color="blue", linetype="dashed", size=1) +
+    geom_density(alpha=.2, fill="#FF6666") +
+    labs(title=title, subtitle=subtitle, x = strCampo) + 
+    theme(plot.subtitle = element_text(size=10)) +
+    scale_x_continuous(labels = scales::comma) 
+  
+  return(p1)
+}
+
+```
+
+## Cargamos datos
+
+Datos originales de la competición
+```{r results='hide', message=F, warning=F}
+
+# Leer datos
+dsTrain <- read.csv("./input/train.csv")
+dsTest <- read.csv("./input/test.csv")
+
+```
+
+## Conjunto unificado
+
+Juntamos los datos de entrenamiento con los de test para realizar el estudio y las transformaciones pertinentes sobre todos los datos.
+
+ * Añadimos SalePrice al conjunto de Test con valor NA 
+ * Marcamos datos de entrenamiento y test
+
+
+```{r results='hide', message=F, warning=F}
+
+dsTest <- dsTest %>% 
+  mutate(SalePrice = as.integer(NA), indTrain = 0)
+
+dsDataAll <- dsTrain %>%
+  mutate(indTrain = 1) %>%
+  union(dsTest) %>%
+  select(SalePrice, indTrain, everything())
+
+dsDataAll$indTrain <- as.factor(dsDataAll$indTrain)
+
+# Elimino los conjuntos originales
+rm(dsTrain)
+rm(dsTest)
+
+```
+
+He generado un fichero de documentación de los campos, con su descripción, tipo, posibles valores y una clasificación según la información que suministra para el problema en cuestión. Ver fichero "campos.csv".
+
+Para los campos Ordinales / Nominales he creado un fichero con los valores posibles, de tal forma que se pueda verificar que el contenido del fichero es correcto. Además permitira crear correctamente los factores, en caso de falta de información.
+
+Cargo los datos de los csv
+
+```{r}
+
+# Definición de campos
+dsCampos <- read.csv("./input/campos.csv",sep=";",stringsAsFactors = FALSE)
+
+dsCampos <- dsCampos %>%
+  mutate_if(is.factor, as.character)
+
+# Dejamos el Tipo y el segmento como factor
+dsCampos$Tipo <- as.factor(dsCampos$Tipo)
+dsCampos$Segmento <- as.factor(dsCampos$Segmento)
+
+
+# Valores de campos 
+dsCamposValor <- read.csv("./input/Campos_Valor.csv",sep=";",stringsAsFactors = FALSE)
+dsCamposValor$Valor <- stringr::str_trim(dsCamposValor$Valor)
+
+```
+
+# Análisis descriptivo inicial del conjunto de datos
+
+Estudio preliminar, vemos tipos de datos y una primera aproximación al contenido. 
+
+
+```{r, warning=FALSE}
+dim(dsDataAll)
+names(dsDataAll)
+str(dsDataAll) #glimpse(dsDataAll)
+summary(dsDataAll)
+```
+
+
+## Variable objetivo
+
+Estudiamos la variable objetivo mediante la función creada.
+
+```{r message=F, warning=F}
+ggplotHistogramaDensidad("SalePrice",dsDataAll)
+```
+
+
+## Resto de variables continuas 
+
+Realizamos la misma operación con el resto de variables continuas.
+```{r message=F, warning=F}
+# Selecciono variables continuas
+dsCamposContinua <- dsCampos %>% 
+  filter(Tipo=="Continua" & Campo!="SalePrice")  %>% 
+  select(Campo) 
+
+#Genero histograma con densidad para cada variable
+gs <- apply(dsCamposContinua, MARGIN=1, ggplotHistogramaDensidad, ds=dsDataAll)
+marrangeGrob(grobs=gs, nrow=2, ncol=2)
+rm(gs)
+
+```
+
+## Resto de variables discretas
+
+Realizamos la misma operación con el resto de variables discretas.
+```{r message=F, warning=F}
+# Selecciono variables continuas
+dsCamposDiscreta <- dsCampos %>% 
+  filter(Tipo=="Discreta")  %>% 
+  select(Campo) 
+
+#Genero histograma con densidad para cada variable
+gs <- apply(dsCamposDiscreta, MARGIN=1, ggplotHistogramaDensidad, ds=dsDataAll)
+marrangeGrob(grobs=gs, nrow=2, ncol=2)
+rm(gs)
+
+```
+
+
+# Limpieza y preparación de los datos
+
+En general se ha intentado no eliminar observaciones, ya que el conjunto de datos es muy reducido. Se han realizado las siguientes tareas:
+
+## Verificación de contenido de datos campos Nominales y Ordinales
+
+En primer lugar, convertimos variables factor a texto, para poder buscar y corregir valores. 
+
+```{r}
+dsDataAll <- dsDataAll %>%
+  mutate_if(is.factor, as.character)
+
+# Dejamos el indicador de entrenamiento como factor
+dsDataAll$indTrain <- as.factor(dsDataAll$indTrain)
+
+```
+
+Cruzo los valores existentes en la documentación con los datos de los ficheros.
+```{r}
+# Dataset con el nombre de los campos ordinales y nominales 
+dsCamposOrdinalesNominal <- dsCampos %>% 
+  filter(Tipo=="Ordinal" | Tipo=="Nominal")  %>% 
+  select(Campo) 
+
+dsCamposValorOriginales <- select(dsDataAll, c("Id",c(dsCamposOrdinalesNominal$Campo))) %>% 
+  gather("Campo","Valor",c(dsCamposOrdinalesNominal$Campo)) %>% 
+  na.omit() %>% 
+  arrange(Id)
+
+# Busco valores que no concuerdan con especificaciones
+dsCamposValorOriginales %>%
+  anti_join(dsCamposValor,  by = c("Campo","Valor")) %>%
+  group_by(Campo, Valor) %>%
+  tally()
+```
+
+CORRECCIÓN DE ERRORES
+```{r results='hide', message=F, warning=F}
+
+# Normalizar valores para los campos Exterior1st / Exterior2nd 
+dsDataAll <- dsDataAll %>% mutate(Exterior1st = ifelse(Exterior1st=="WdShing","WdShng",Exterior1st))
+dsDataAll <- dsDataAll %>% mutate(Exterior1st = ifelse(Exterior1st=="Wd Sdng","WdSdng",Exterior1st))
+dsDataAll <- dsDataAll %>% mutate(Exterior1st = ifelse(Exterior1st=="Wd Shng","WdShng",Exterior1st))
+
+dsDataAll <- dsDataAll %>% mutate(Exterior2nd = ifelse(Exterior2nd=="CmentBd","CemntBd",Exterior2nd))
+dsDataAll <- dsDataAll %>% mutate(Exterior2nd = ifelse(Exterior2nd=="Wd Sdng","WdSdng",Exterior2nd))
+dsDataAll <- dsDataAll %>% mutate(Exterior2nd = ifelse(Exterior2nd=="Wd Shng","WdShng",Exterior2nd))
+dsDataAll <- dsDataAll %>% mutate(Exterior2nd = ifelse(Exterior2nd=="Brk Cmn","BrkComm",Exterior2nd))
+
+# MSZoning	C (all) -> Cambio valor a C 
+dsDataAll %>%
+  select(MSZoning) %>%
+  na.omit() %>% 
+  count(MSZoning)
+
+dsDataAll <- dsDataAll %>% mutate(MSZoning = ifelse(MSZoning=="C (all)","C",MSZoning))
+
+# RoofMatl	Tar&Grv
+dsDataAll %>%
+  select(RoofMatl) %>%
+  na.omit() %>% 
+  count(RoofMatl)
+
+dsDataAll <- dsDataAll %>% mutate(RoofMatl = ifelse(RoofMatl=="Tar&Grv","Tar",RoofMatl))
+
+# verificación Neighborhood=="NAmes"
+# Neighborhood=="NAmes" -> cambio valor en excel a NAmes para Names: North Ames
+# filter(dsDataAll,Neighborhood=="NAmes")
+
+# BldgType -> cambio valor en excel a Twnhs para BldgType: TwnhsI - Townhouse Inside Unit
+# verifico valores en datos
+filter(dsDataAll,grepl('Twnhs', BldgType)) %>%
+    select(BldgType) %>%
+    count(BldgType)
+  
+```
+
+Verificamos que no exista valores no contemplados.
+```{r}
+
+# VERIFICACIÓN
+
+dsCamposValorOriginales <- select(dsDataAll, c("Id",c(dsCamposOrdinalesNominal$Campo))) %>% 
+  gather("Campo","Valor",c(dsCamposOrdinalesNominal$Campo)) %>% 
+  na.omit() %>% 
+  arrange(Id)
+
+# Busco valores que no concuerdan con especificaciones
+dsCamposValorOriginales %>%
+  anti_join(dsCamposValor,  by = c("Campo","Valor"))
+
+rm(dsCamposValorOriginales)
+rm(dsCamposOrdinalesNominal)
+
+```
+
+## Valores faltantes - Missing Data
+
+Muchos algoritmos no aceptan observaciones con valores no definidos (NA), por lo que, es necesario encontrarlos y darles una solución, se puede:
+* Eliminar observaciones que estén incompletas: dado que existen pocos datos esta opción no se ha usado.
+* Eliminar variables que contengan valores ausentes.
+* Estimar los valores ausentes empleando el resto de información disponible (imputación).
+Identifico valores faltantes, con el porcentaje que suponen frente al total de observaciones.
+
+```{r message=F, warning=F}
+
+missingData <- dsDataAll %>%
+  summarise_all(funs(sum(is.na(.)))) %>% 
+  gather("column") %>%
+  rename(NumNAs = value) %>% 
+  mutate(PrcNAs = NumNAs/nrow(dsDataAll)) %>% 
+  filter(NumNAs!=0) %>%
+  arrange(desc(PrcNAs))
+
+missingData
+
+```
+
+Las variables con un porcentaje de valores asuntes muy alto (>80%) las excluimos del modelo, ya que pueden dar errores al realizar subconjuntos de datos pare entrenar y validar los modelos.
+
+```{r}
+
+# PoolQC - Calidad de la piscina
+# MiscFeature -  características varias no cubiertas en otras categorías
+# Alley - tipo de acceso al callejón
+# Fence - calidad de la cerca
+
+eliminar <- filter(missingData, PrcNAs > 0.80) %>% select(column)
+
+dsDataAll <- dsDataAll %>% 
+    select(-c(eliminar$column))
+
+rm(eliminar)
+
+```
+
+Del resto de valores pendientes realizo estudio y modifico valores faltantes.
+
+```{r}
+
+#FireplaceQu
+# a <- dsDataAll %>% filter(!is.na(FireplaceQu)) %>% select(FireplaceQu, Fireplaces)
+# b <- dsDataAll %>% filter(Fireplaces!=0) %>% select(FireplaceQu, Fireplaces)
+# b %>% filter(is.na(FireplaceQu))
+
+# Si no tiene chimenea asigno un valor None
+dsDataAll <- mutate(dsDataAll, FireplaceQu = ifelse(is.na(FireplaceQu),"None",FireplaceQu))
+
+
+#LotFrontage -  pies lineales de calle conectados a la propiedad
+# a <- dsDataAll %>% filter(!is.na(LotFrontage)) %>% select(LotFrontage, MSSubClass)
+# b <- train %>% filter(!is.na(LotFrontage)) %>% select(LotFrontage, MSSubClass, SalePrice)
+# ggplot(b, aes(x=LotFrontage, y=SalePrice, color=MSSubClass)) + geom_point()
+
+# Si no tiene valor asigno la media
+dsDataAll <- mutate(dsDataAll, LotFrontage = ifelse(is.na(LotFrontage),mean(dsDataAll$LotFrontage,na.rm = TRUE),LotFrontage))
+
+# GarageYrBlt/GarageFinish/GarageQual/GarageCond/GarageType
+# a <- dsDataAll %>% filter(is.na(GarageYrBlt)) %>%
+#   select(GarageCars, GarageArea, GarageYrBlt, GarageFinish, GarageQual, GarageCond, GarageType)
+
+#Ordinales asigno texto None
+dsDataAll <- mutate(dsDataAll, GarageCond = ifelse(is.na(GarageCond),"None",GarageCond))
+dsDataAll <- mutate(dsDataAll, GarageQual = ifelse(is.na(GarageQual),"None",GarageQual))
+dsDataAll <- mutate(dsDataAll, GarageFinish = ifelse(is.na(GarageFinish),"None",GarageFinish))
+
+#Nominales None
+dsDataAll <- mutate(dsDataAll, GarageType = ifelse(is.na(GarageType),"None",GarageType))
+
+#Discretas y continuas 0 no tienen garage
+dsDataAll <- mutate(dsDataAll, GarageYrBlt = ifelse(is.na(GarageYrBlt),0,GarageYrBlt))
+dsDataAll <- mutate(dsDataAll, GarageCars = ifelse(is.na(GarageCars),0,GarageCars))
+dsDataAll <- mutate(dsDataAll, GarageArea = ifelse(is.na(GarageArea),0,GarageArea))
+
+#TotalBsmtSF 0 
+dsDataAll <- mutate(dsDataAll, TotalBsmtSF = ifelse(is.na(TotalBsmtSF),0,TotalBsmtSF))
+
+# BsmtCond / BsmtExposure / BsmtQual / BsmtFinType2 / BsmtFinType1
+# a <- dsDataAll %>% filter(TotalBsmtSF==0) %>%
+#  select(TotalBsmtSF
+#    ,BsmtFinSF1
+#    ,BsmtFinType2
+#    ,BsmtFinSF2
+#    ,BsmtUnfSF
+#    ,BsmtQual
+#    ,BsmtCond
+#    ,BsmtExposure
+#    ,BsmtFinType1
+#    ,BsmtFullBath
+#    ,BsmtHalfBath)
+
+#Discretas y continuas 0 no tienen garage
+dsDataAll <- mutate(dsDataAll, BsmtFinSF1 = ifelse(is.na(BsmtFinSF1),0,BsmtFinSF1))
+dsDataAll <- mutate(dsDataAll, BsmtFinSF2 = ifelse(is.na(BsmtFinSF2),0,BsmtFinSF2))
+dsDataAll <- mutate(dsDataAll, BsmtUnfSF = ifelse(is.na(BsmtUnfSF),0,BsmtUnfSF))
+dsDataAll <- mutate(dsDataAll, BsmtFullBath = ifelse(is.na(BsmtFullBath),0,BsmtFullBath))
+dsDataAll <- mutate(dsDataAll, BsmtHalfBath = ifelse(is.na(BsmtHalfBath),0,BsmtHalfBath))
+
+#Ordinales asigno texto None
+dsDataAll <- mutate(dsDataAll, BsmtFinType2 = ifelse(is.na(BsmtFinType2),"None",BsmtFinType2))
+dsDataAll <- mutate(dsDataAll, BsmtQual = ifelse(is.na(BsmtQual),"None",BsmtQual))
+dsDataAll <- mutate(dsDataAll, BsmtCond = ifelse(is.na(BsmtCond),"None",BsmtCond))
+dsDataAll <- mutate(dsDataAll, BsmtExposure = ifelse(is.na(BsmtExposure),"None",BsmtExposure))
+dsDataAll <- mutate(dsDataAll, BsmtFinType1 = ifelse(is.na(BsmtFinType1),"None",BsmtFinType1))
+
+#MasVnrType	 tipo de chapa de albañilería
+# summary(as.factor(dsDataAll$MasVnrType))
+dsDataAll <- mutate(dsDataAll, MasVnrType = ifelse(is.na(MasVnrType),"None",MasVnrType))
+
+#MasVnrArea	 área de revestimiento de mampostería en pies cuadrados
+# summary(dsDataAll$MasVnrArea)
+dsDataAll <- mutate(dsDataAll, MasVnrArea = ifelse(is.na(MasVnrArea),0,MasVnrArea))
+
+#MSZoning	 la clasificación general de zonificación (Nominal)
+# summary(as.factor(dsDataAll$MSZoning))
+dsDataAll <- mutate(dsDataAll, MSZoning = ifelse(is.na(MSZoning),"RL",MSZoning))
+
+#Utilities  tipo de utilidades disponibles
+# summary(dsDataAll$Utilities)
+# Descartamos la variable Utilities ya que todas las filas tienen el mismo valor menos 3 y dos son NAs
+dsDataAll <- select(dsDataAll, -Utilities)
+
+#Functional	 calificación de funcionalidad del hogar
+# summary(as.factor(dsDataAll$Functional))
+dsDataAll <- mutate(dsDataAll, Functional = ifelse(is.na(Functional),"Typ",Functional))
+
+#Exterior1st  cubierta exterior en la casa
+# summary(as.factor(dsDataAll$Exterior1st))
+dsDataAll <- mutate(dsDataAll, Exterior1st = ifelse(is.na(Exterior1st),"VinylSd",Exterior1st))
+
+#Exterior2nd  revestimiento exterior de la casa (si hay más de un material)
+#summary(as.factor(dsDataAll$Exterior2nd))
+dsDataAll <- mutate(dsDataAll, Exterior2nd = ifelse(is.na(Exterior2nd),"VinylSd",Exterior2nd))
+
+#Electrical	-  sistema eléctrico
+#summary(as.factor(dsDataAll$Electrical))
+dsDataAll <- mutate(dsDataAll, Electrical = ifelse(is.na(Electrical),"SBrkr",Electrical))
+
+#KitchenQual
+#summary(as.factor(dsDataAll$KitchenQual))
+dsDataAll <- mutate(dsDataAll, KitchenQual = ifelse(is.na(KitchenQual),"TA",KitchenQual))
+
+#SaleType
+#summary(as.factor(dsDataAll$SaleType))
+dsDataAll <- mutate(dsDataAll, SaleType = ifelse(is.na(SaleType),"WD",SaleType))
+
+```
+
+Verificamos que no quedan pendientes valores faltantes, solo debe de quedar SalePrice para el conjunto de test.
+```{r}
+
+# VERIFICACIÓN
+
+missingData <- dsDataAll %>%
+  summarise_all(funs(sum(is.na(.)))) %>% 
+  gather("column") %>%
+  rename(NumNAs = value) %>% 
+  mutate(PrcNAs = NumNAs/nrow(dsDataAll)) %>% 
+  filter(NumNAs!=0) %>%
+  arrange(desc(PrcNAs))
+
+missingData
+
+rm(missingData)
+
+```
+
+
+## Verificación del tipo de datos
+
+Determinamos los tipos de variables:
+*Continuas
+*Discretas
+*Ordinales
+*Nominales
+
+Cruzo campos documentación con los campos originales para verificar nombres de campos y tipos
+
+```{r}
+
+# Obtengo campos originales de los ficheros
+dsCamposOriginales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("Campo")
+
+# Verifico nombres de campos y que existen todos
+dsCamposOriginales %>%
+  anti_join(dsCampos,  by = c("Campo"))
+
+# Verificamos que estan todos los campos (salen las variables ya eliminadas)
+dsCampos %>%
+  anti_join(dsCamposOriginales,  by = c("Campo"))  %>%
+  select(Campo)
+
+```
+
+Variables Continuas
+
+```{r}
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y == "Continua" & Tipo.x != "integer" & Tipo.x != "numeric")
+```
+
+Variables Discretas
+
+```{r}
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y == "Discreta" & Tipo.x != "integer" & Tipo.x != "numeric")
+```
+
+Variables Ordinales
+
+Convertiremos las variables ordinales a numéricas basandonos en el orden establecido en la documentación.
+
+Primero verifico si todas las variables ordinales son del tipo character
+
+```{r}
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y == "Ordinal" & Tipo.x != "character") 
+
+# OverallQual / OverallCond -> se mantienen con el orden indicado ya estan como númericas.
+```
+OverallQual / OverallCond son enteras y se mantienen con el orden indicado.
+
+Al resto de variables les asigno los niveles de la documentación y posteriormente las convierto a numéricas, como las listas en la documentación están ordenadas de mayor a menor, utilizo la función rev para invertir el orden.
+
+Si a alguna variable le he añadido el valor "None", este valor lo pongo el primero y al pasarlo a numérico resto 1, por lo que el valor None pasara a 0.
+```{r}
+
+# ExterQual -  calidad del material exterior
+#  Ex: Excellent
+#  Gd: Good
+#  TA: Average/Typical
+#  Fa: Fair
+#  Po: Poor
+
+dsDataAll$ExterQual <- factor(dsDataAll$ExterQual, levels = rev(c("Ex","Gd","TA","Fa","Po")))
+dsDataAll$ExterQual <- as.numeric(c(dsDataAll$ExterQual))
+
+#ExterCond	 Condición actual del material en el exterior.	
+#Ex: Excellent
+#Gd: Good
+#TA: Average/Typical
+#Fa: Fair
+#Po: Poor
+
+dsDataAll$ExterCond <- factor(dsDataAll$ExterCond, levels = rev(c("Ex","Gd","TA","Fa","Po")))
+dsDataAll$ExterCond <- as.numeric(c(dsDataAll$ExterCond))
+
+#LotShape	 forma general de propiedad	
+#Reg: Regular	
+#IR1: Slightly irregular
+#IR2: Moderately Irregular
+#IR3: Irregular
+
+dsDataAll$LotShape <- factor(dsDataAll$LotShape, levels = rev(c("Reg","IR1","IR2","IR3")))
+dsDataAll$LotShape <- as.numeric(c(dsDataAll$LotShape))
+
+#LandSlope	 pendiente de la propiedad	
+#Gtl: Gentle slope
+#Mod: Moderate Slope	
+#Sev: Severe Slope
+
+dsDataAll$LandSlope <- factor(dsDataAll$LandSlope, levels = rev(c("Gtl","Mod","Sev")))
+dsDataAll$LandSlope <- as.numeric(c(dsDataAll$LandSlope))
+
+#BsmtQual	 altura del sótano	
+#Ex: Excellent (100+ inches)	
+#Gd: Good (90-99 inches)
+#TA: Typical (80-89 inches)
+#Fa: Fair (70-79 inches)
+#Po: Poor (<70 inches
+#NA: No Basement
+
+dsDataAll$BsmtQual <- factor(dsDataAll$BsmtQual, levels = rev(c("Ex","Gd","TA","Fa","Po","None")))
+dsDataAll$BsmtQual <- as.numeric(c(dsDataAll$BsmtQual))-1
+
+#BsmtCond	 estado general del sótano	
+#Ex: Excellent
+#Gd: Good
+#TA: Typical - slight dampness allowed
+#Fa: Fair - dampness or some cracking or settling
+#Po: Poor - Severe cracking, settling, or wetness
+#NA: No Basement
+
+dsDataAll$BsmtCond <- factor(dsDataAll$BsmtCond, levels = rev(c("Ex","Gd","TA","Fa","Po","None")))
+dsDataAll$BsmtCond <- as.numeric(c(dsDataAll$BsmtCond))-1
+
+#BsmtExposure	 paredes de sótano a nivel de jardín o de huelga	
+#Gd: Good Exposure
+#Av: Average Exposure (split levels or foyers typically score average or above)	
+#Mn: Mimimum Exposure
+#No: No Exposure
+#NA: No Basement
+
+dsDataAll$BsmtExposure <- factor(dsDataAll$BsmtExposure, levels = rev(c("Gd","Av","Mn","No","None")))
+dsDataAll$BsmtExposure <- as.numeric(c(dsDataAll$BsmtExposure))-1
+
+#BsmtFinType1	 Calidad del área terminada del sótano	
+#GLQ: Good Living Quarters
+#ALQ: Average Living Quarters
+#BLQ: Below Average Living Quarters	
+#Rec: Average Rec Room
+#LwQ: Low Quality
+#Unf: Unfinshed
+#NA: No Basement
+
+dsDataAll$BsmtFinType1 <- factor(dsDataAll$BsmtFinType1, levels = rev(c("GLQ","ALQ","BLQ","Rec","LwQ","Unf","None")))
+dsDataAll$BsmtFinType1 <- as.numeric(c(dsDataAll$BsmtFinType1))-1
+
+#BsmtFinType2	 Calidad de la segunda área terminada (si está presente)	
+#GLQ: Good Living Quarters
+#ALQ: Average Living Quarters
+#BLQ: Below Average Living Quarters	
+#Rec: Average Rec Room
+#LwQ: Low Quality
+#Unf: Unfinshed
+#NA: No Basement
+
+dsDataAll$BsmtFinType2 <- factor(dsDataAll$BsmtFinType2, levels = rev(c("GLQ","ALQ","BLQ","Rec","LwQ","Unf","None")))
+dsDataAll$BsmtFinType2 <- as.numeric(c(dsDataAll$BsmtFinType2))-1
+
+#HeatingQC	 calidad y condición de calefacción	
+#Ex: Excellent
+#Gd: Good
+#TA: Average/Typical
+#Fa: Fair
+#Po: Poor
+
+dsDataAll$HeatingQC <- factor(dsDataAll$HeatingQC, levels = rev(c("Ex","Gd","TA","Fa","Po")))
+dsDataAll$HeatingQC <- as.numeric(c(dsDataAll$HeatingQC))
+
+#Electrical	 sistema eléctrico	
+#SBrkr: Standard Circuit Breakers & Romex
+#FuseA: Fuse Box over 60 AMP and all Romex wiring (Average)	
+#FuseF: 60 AMP Fuse Box and mostly Romex wiring (Fair)
+#FuseP: 60 AMP Fuse Box and mostly knob & tube wiring (poor)
+#Mix: Mixed
+
+dsDataAll$Electrical <- factor(dsDataAll$Electrical, levels = rev(c("SBrkr","FuseA","FuseF","FuseP","Mix")))
+dsDataAll$Electrical <- as.numeric(c(dsDataAll$Electrical))
+
+#KitchenQual	 calidad de cocina	
+#Ex: Excellent
+#Gd: Good
+#TA: Typical/Average
+#Fa: Fair
+#Po: Poor
+
+dsDataAll$KitchenQual <- factor(dsDataAll$KitchenQual, levels = rev(c("Ex","Gd","TA","Fa","Po")))
+dsDataAll$KitchenQual <- as.numeric(c(dsDataAll$KitchenQual))
+
+#Functional	 calificación de funcionalidad del hogar	
+#Typ: Typical Functionality
+#Min1: Minor Deductions 1
+#Min2: Minor Deductions 2
+#Mod: Moderate Deductions
+#Maj1: Major Deductions 1
+#Maj2: Major Deductions 2
+#Sev: Severely Damaged
+#Sal: Salvage only
+
+dsDataAll$Functional <- factor(dsDataAll$Functional, levels = rev(c("Typ","Min1","Min2","Mod","Maj1","Maj2","Sev","Sal")))
+dsDataAll$Functional <- as.numeric(c(dsDataAll$Functional))
+
+#FireplaceQu	 calidad de chimenea	
+#Ex: Excellent - Exceptional Masonry Fireplace
+#Gd: Good - Masonry Fireplace in main level
+#TA: Average - Prefabricated Fireplace in main living area or Masonry Fireplace in basement
+#Fa: Fair - Prefabricated Fireplace in basement
+#Po: Poor - Ben Franklin Stove
+#NA: No Fireplace
+
+dsDataAll$FireplaceQu <- factor(dsDataAll$FireplaceQu, levels = rev(c("Ex","Gd","TA","Fa","Po","None")))
+dsDataAll$FireplaceQu <- as.numeric(c(dsDataAll$FireplaceQu))-1
+
+#GarageFinish	 acabado interior del garaje	
+#Fin: Finished
+#RFn: Rough Finished	
+#Unf: Unfinished
+#NA: No Garage
+
+dsDataAll$GarageFinish <- factor(dsDataAll$GarageFinish, levels = rev(c("Fin","RFn","Unf","None")))
+dsDataAll$GarageFinish <- as.numeric(c(dsDataAll$GarageFinish))-1
+
+#GarageQual	 calidad de garaje	
+#Ex: Excellent
+#Gd: Good
+#TA: Typical/Average
+#Fa: Fair
+#Po: Poor
+#NA: No Garage
+
+dsDataAll$GarageQual <- factor(dsDataAll$GarageQual, levels = rev(c("Ex","Gd","TA","Fa","Po","None")))
+dsDataAll$GarageQual <- as.numeric(c(dsDataAll$GarageQual))-1
+
+#GarageCond	 condición del garaje	
+#Ex: Excellent
+#Gd: Good
+#TA: Typical/Average
+#Fa: Fair
+#Po: Poor
+#NA: No Garage
+
+dsDataAll$GarageCond <- factor(dsDataAll$GarageCond, levels = rev(c("Ex","Gd","TA","Fa","Po","None")))
+dsDataAll$GarageCond <- as.numeric(c(dsDataAll$GarageCond))-1
+
+#PavedDrive	 entrada pavimentada	
+#Y: Paved 
+#P: Partial Pavement
+#N: Dirt/Gravel
+
+dsDataAll$PavedDrive <- factor(dsDataAll$PavedDrive, levels = rev(c("Y","P","N")))
+dsDataAll$PavedDrive <- as.numeric(c(dsDataAll$PavedDrive))
+
+#PoolQC	 calidad de la piscina (Eliminada)
+```
+
+Verificamos que todos los campos ordinales sean numéricos.
+```{r}
+## VERIFICACIÓN
+
+# Obtengo campos originales una vez trasformados
+dsCamposOriginales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("Campo")
+
+# Verifico que todos han quedado numéricos
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y == "Ordinal" & Tipo.x != "integer" & Tipo.x != "numeric") 
+
+```
+
+
+Variables Nominales convierto a factor
+
+```{r}
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y == "Nominal" & Tipo.x != "character") 
+
+dsDataAll$MSSubClass <- as.character(dsDataAll$MSSubClass)
+
+# Verifico que todos los campos caracter son Nominales u Ordinales
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y != "Ordinal" & Tipo.y != "Nominal" & Tipo.x == "character") 
+
+# Paso a factor
+dsDataAll <- dsDataAll %>% 
+    mutate_if(is.character, as.factor)
+
+
+## VERIFICACIÓN
+
+# Obtengo campos originales una vez trasformados
+dsCamposOriginales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("Campo")
+
+# Verifico que todos han quedado factor
+dsCamposOriginales %>%
+  inner_join(dsCampos,  by = c("Campo")) %>%
+  select(Campo, Tipo.x, Tipo.y) %>%
+  filter(Tipo.y == "Nominal" & Tipo.x != "factor") 
+
+rm(dsCamposOriginales)
+rm(dsCamposValor)
+
+```
+
+Ls variables con dos valores se convierten directamente a numéricas indicando 0 ausencia y 1 presencia del valor, CentralAir y Street que pasa a llamarse StreetPave
+
+$ Street       : Factor w/ 2 levels "Grvl","Pave"
+$ CentralAir   : Factor w/ 2 levels "N","Y"
+ 
+```{r}
+
+#  Grvl:  12 
+#  Pave:2907
+
+dsDataAll$StreetPave[dsDataAll$Street != "Pave"] <- "0"
+dsDataAll$StreetPave[dsDataAll$Street == "Pave"] <- "1"
+dsDataAll$StreetPave <- as.numeric(dsDataAll$StreetPave)
+dsDataAll <- select(dsDataAll, -Street)
+
+# CentralAir
+# Y:2723
+# N: 196
+
+dsDataAll$CentralAir <- as.character(dsDataAll$CentralAir)
+dsDataAll$CentralAir[dsDataAll$CentralAir != "Y"] <- "0"
+dsDataAll$CentralAir[dsDataAll$CentralAir == "Y"] <- "1"
+dsDataAll$CentralAir <- as.numeric(dsDataAll$CentralAir)
+
+```
+
+*Salvar progreso*
+```{r}
+
+# save(dsDataAll, file = './F01_Datos/F01_dsDataAll.RData')
+# load('./F01_Datos/F01_dsDataAll.RData')
+
+```
+
+## Outliers - Busqueda de valores atípicos
+
+Tratamientos posibles:
+
+* Retirar la fila
+* Asigne el siguiente valor más cercano a la mediana en lugar del valor atípico
+
+### SalesPrice 
+
+No identifico valores a eliminar por precio, aunque si existen un par de valores que se pueden identificar como raros en función de su precio y su area, se estudiaran seguidamente.
+
+```{r}
+
+# SalesPrice
+
+summary(dsDataAll$SalePrice)
+
+var <- "SalePrice"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=MSSubClass)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=BldgType)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=HouseStyle)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=LotArea)) + geom_point() 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+```
+
+### Resto de variables continuas 
+
+**GrLivArea** superficie habitable por encima del nivel del suelo (pies cuadrados)
+
+Existen 2 valores atípicos son muy altos para el precio que tienen en el conjunto de entrenamiento, estas filas se eliminarán al ser esta una variable principal para el proceso de predicción
+
+```{r}
+summary(dsDataAll$GrLivArea)
+var <- "GrLivArea"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF+X2ndFlrSF)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point(aes(color = indTrain)) #solo conjunto TRAIN al estarSalePrice NA en test 
+  ,ncol=1)
+
+# Existen 2 valores atípicos son muy altos para el precio que tienen en el conjunto de entrenamiento
+
+# Selecciono las filas a eliminar 
+eliminar <- dsDataAll %>% 
+    filter(indTrain==1&GrLivArea>4500) %>% 
+    select(Id, GrLivArea, SalePrice, indTrain)
+
+# dsDataAll %>%
+#   inner_join(eliminar,by="Id")
+
+dsDataAll <- dsDataAll %>%
+  anti_join(eliminar,by="Id")
+
+rm(eliminar)
+rm(var)
+rm(a)
+```
+
+**LotArea**	 tamaño del lote en pies cuadrados
+
+Existen 4 valores claramente fuera de rango, creo variable nueva actualizandolos con los valores con la mediana según el tipo de construcción
+
+```{r}
+summary(dsDataAll$LotArea)
+var <- "LotArea"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=MSSubClass)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=BldgType)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=HouseStyle)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol = 2)
+
+# Existen 4 valores claramente fuera de rango, 
+# los actualizo con los valores con la mediana según el tipo de construcción
+
+# Calculo mediana por tipo de construcción
+lotAreaMedian <- select(dsDataAll,BldgType,LotArea) %>%
+    group_by(BldgType) %>% 
+    summarise(medianLotArea = median(LotArea))
+
+f <- function(x){
+  a <- as.numeric(lotAreaMedian[lotAreaMedian$BldgType==x,2])
+  return(a)
+}
+
+
+# Seleccion Outliers
+outlier_values <- as.data.frame(boxplot.stats(dsDataAll$LotArea)$out) 
+names(outlier_values) = "LotArea"
+outlier_values$LotArea <- as.numeric(outlier_values$LotArea)
+outlier_values <- outlier_values %>% 
+  arrange(desc(LotArea)) %>%    
+  top_n(4)
+
+outlier_values
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(LotArea = ifelse(LotArea>=115149,f(BldgType),LotArea))	
+
+# Modificación medianta uniones
+# outlier_values <- outlier_values %>%
+#   inner_join(data, by="LotArea") %>%
+#   inner_join(lotAreaMedian, by="BldgType") %>%
+#   select(Id, medianLotArea)
+# 
+# data <- data %>% 
+#   left_join(outlier_values) %>%
+#   mutate(LotArea = ifelse(is.na(medianLotArea),LotArea,medianLotArea)) %>%
+#   select(-medianLotArea)
+
+rm(outlier_values)
+rm(lotAreaMedian)
+rm(f)
+rm(var)
+rm(a)
+
+```
+
+**X1stFlrSF** pies cuadrados del primer piso
+
+NO IDENTIFICO OUTLIERS -- Existian dos pero se han eliminado en el tratamiento GrLivArea
+
+```{r}
+summary(dsDataAll$X1stFlrSF)
+var <- "X1stFlrSF"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=MSSubClass)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=BldgType)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=HouseStyle)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test ,
+  ,ncol = 2)
+
+# NO IDENTIFICO OUTLIERS -- Existian dos pero se han eliminado en el tratamiento GrLivArea
+
+rm(var)
+rm(a)
+
+```
+
+**X2ndFlrSF** pies cuadrados del segundo piso
+
+NO IDENTIFICO OUTLIERS -- Existian dos pero se han eliminado en el tratamiento GrLivArea
+
+```{r}
+summary(dsDataAll$X2ndFlrSF)
+var <- "X2ndFlrSF"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$X2ndFlrSF)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=MSSubClass)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=BldgType)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=HouseStyle)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol = 2)
+# NO IDENTIFICO OUTLIERS -- Existian dos pero se han eliminado en el tratamiento GrLivArea
+
+rm(var)
+rm(a)
+```
+
+**LowQualFinSF** pies cuadrados terminados de baja calidad (todos los pisos)
+
+Parece que existe un par de valores extraños, creo variable nueva y actualizo a la mediana de todos los valores no cero
+
+```{r}
+summary(dsDataAll$LowQualFinSF)
+var <- "LowQualFinSF"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=1)
+
+# Parece que existe un par de valores extraños 
+# Actualizo a la mediana de todos los valores no cero
+medianLowQualFinSF <- median(a$LowQualFinSF)
+
+#select(data,Id,LowQualFinSF) %>% filter(LowQualFinSF>600)
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(LowQualFinSF = ifelse(LowQualFinSF>600,medianLowQualFinSF,LowQualFinSF))	
+
+
+rm(medianLowQualFinSF)
+rm(var)
+rm(a)
+```
+
+**MasVnrArea** área de revestimiento de mampostería en pies cuadrados
+
+Parece que existe un valor extraño actualizo a la mediana de todos los valores no cero
+
+```{r}
+summary(dsDataAll$MasVnrArea)
+var <- "MasVnrArea"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$MasVnrArea)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=1)
+
+# Parece que existe un valor extraño 
+# Actualizo a la mediana de todos los valores no cero
+medianMasVnrArea <- median(a$MasVnrArea)
+
+#select(data,Id,MasVnrArea) %>% filter(MasVnrArea>1500)
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(MasVnrArea = ifelse(MasVnrArea>1500,medianMasVnrArea,MasVnrArea))	
+
+
+rm(medianMasVnrArea)
+rm(var)
+rm(a)
+
+```
+
+**WoodDeckSF** área de cubierta de madera en pies cuadrados
+
+Parece que existe un valor extraño, sin embargo existe la posibilidad de que sea una casa completamente de madera, pero como el valor esta en el conjunto de test no se puede usar para entrenar y el modelo resultante no podrá calcular precios para casas solo de madera, por lo que actualizo el valor a la mediana según la superficie.
+
+```{r}
+summary(dsDataAll$WoodDeckSF)
+var <- "WoodDeckSF"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$WoodDeckSF)
+
+# Comparo con otras variables 
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=Exterior1st)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=Exterior2nd)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=LotFrontage)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point(aes(color = indTrain)) #solo conjunto TRAIN al estar SalePrice NA en test
+  ,ncol=2)
+
+## Parece que existe un valor extraño 
+## Sin embargo existe la posibilidad de que sea una casa completamente de madera,
+## pero como el valor esta en el conjunto de test no se puede usar para entrenar 
+## y el modelo resultante no podrá calcular precios para casas solo de madera, 
+## por lo que actualizo el valor a la mediana según la superficie
+
+select(dsDataAll,Id,WoodDeckSF,GrLivArea) %>% filter(WoodDeckSF>1000)
+
+a <- dsDataAll %>% 
+    filter(get(var)!=0 & GrLivArea > 1300 & GrLivArea < 1400) %>% 
+    select(var)
+    
+medianWoodDeckSF <- median(a$WoodDeckSF)
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(WoodDeckSF = ifelse(WoodDeckSF>1500,medianWoodDeckSF,WoodDeckSF))	
+
+rm(medianWoodDeckSF)
+rm(var)
+rm(a)
+
+```
+
+**BsmtFinSF1** SOTANO Tipo 1 terminado pies cuadrados
+
+NO IDENTIFICO OUTLIERS
+```{r}
+summary(dsDataAll$BsmtFinSF1)
+var <- "BsmtFinSF1"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$BsmtFinSF1)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=TotalBsmtSF)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**BsmtFinSF2** SOTANO pies cuadrados terminados tipo 2
+
+NO IDENTIFICO OUTLIERS
+Aunque hay 3 valores muy altos, parecen estar dentro de la tendencia tanto para el precio como para la suma de superficies.
+
+```{r}
+summary(dsDataAll$BsmtFinSF2)
+var <- "BsmtFinSF2"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$BsmtFinSF2)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=BsmtFinSF1)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=TotalBsmtSF)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+# Aunque hay 3 valores muy altos, parecen estar dentro de la tendencia tanto para el precio como para la suma de superficies.
+
+rm(var)
+rm(a)
+
+```
+
+**BsmtUnfSF**	SOTANO pies cuadrados inacabados de área de sótano
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$BsmtUnfSF)
+var <- "BsmtUnfSF"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$BsmtUnfSF)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=BsmtFinSF1)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol = 2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**TotalBsmtSF**	SOTANO pies cuadrados totales del área del sótano
+
+NO IDENTIFICO OUTLIERS
+Existen 2 valores que pueden ser atípicos, pero son posibles y estan en el conjunto de entrenamiento, los mantengo
+
+
+```{r}
+summary(dsDataAll$TotalBsmtSF)
+var <- "TotalBsmtSF"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$TotalBsmtSF)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF)) + geom_point(aes(color = indTrain)) 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point(aes(color = indTrain)) #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol = 2)
+# NO IDENTIFICO OUTLIERS
+# Existen 2 valores que pueden ser atípicos, pero son posibles y estan en el conjunto de entrenamiento, los mantengo. 
+
+rm(var)
+rm(a)
+
+```
+
+**GarageArea** tamaño del garaje en pies cuadrados
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$GarageArea)
+var <- "GarageArea"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$GarageArea)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=X1stFlrSF)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**OpenPorchSF** área de porche abierto en pies cuadrados
+
+Parece que existen un par de valores extraños: 
+*Uno en el conjunto de entrenamiento, con un porche muy grande y un precio bajo
+*Otro en el conjunto de test, con una superficie muy grande
+Asigno mediana segun el area  
+```{r}
+summary(dsDataAll$OpenPorchSF)
+var <- "OpenPorchSF"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$OpenPorchSF)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol = 2)
+
+## Parece que existen un par de valores extraños 
+## Uno en el conjunto de entrenamiento, con un porche muy grande y un precio bajo
+## Otro en el conjunto de test, con una superficie muy grande
+
+## Asigno mediana segun el area  
+select(dsDataAll,Id,OpenPorchSF,GrLivArea) %>% filter(OpenPorchSF>600|(OpenPorchSF>500&GrLivArea<1000))
+
+a <- dsDataAll %>% 
+    filter(get(var)!=0 & GrLivArea > 700 & GrLivArea < 750) %>% 
+    select(var)
+    
+medianOpenPorchSF <- median(a$OpenPorchSF)
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(OpenPorchSF = ifelse(OpenPorchSF>500&GrLivArea<1000,medianOpenPorchSF,OpenPorchSF))	
+
+
+a <- dsDataAll %>% 
+    filter(get(var)!=0 & GrLivArea > 2550 & GrLivArea < 2650) %>% 
+    select(var)
+    
+medianOpenPorchSF <- median(a$OpenPorchSF)
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(OpenPorchSF = ifelse(OpenPorchSF>600,medianOpenPorchSF,OpenPorchSF))
+
+## Verifico
+dsDataAll %>% 
+  filter(OpenPorchSF!=OpenPorchSF) %>% 
+  select(OpenPorchSF, OpenPorchSF)
+
+
+rm(medianOpenPorchSF)
+rm(var)
+rm(a)
+
+```
+
+**EnclosedPorch** área de porche cerrado en pies cuadrados
+
+Parece que existen un valor extraño en el conjunto de test, con una superficie muy grande
+
+```{r}
+summary(dsDataAll$EnclosedPorch)
+var <- "EnclosedPorch"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$EnclosedPorch)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point(aes(color = indTrain))
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+## Parece que existen un valor extraño en el conjunto de test, con una superficie muy grande
+
+## Asigno mediana segun el area  
+select(dsDataAll,Id,EnclosedPorch,GrLivArea) %>% filter(EnclosedPorch>600)
+
+a <- dsDataAll %>% 
+    filter(get(var)!=0 & GrLivArea > 1800 & GrLivArea < 1850) %>% 
+    select(var)
+    
+medianEnclosedPorch <- median(a$EnclosedPorch)
+
+# Modificación directa
+dsDataAll <- dsDataAll %>%
+  rowwise() %>%
+	mutate(EnclosedPorch = ifelse(OpenPorchSF>600,medianEnclosedPorch,EnclosedPorch))	
+
+
+rm(medianEnclosedPorch)
+rm(var)
+rm(a)
+
+```
+
+**X3SsnPorch** área de porche de tres estaciones en pies cuadrados
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$X3SsnPorch)
+var <- "X3SsnPorch"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$X3SsnPorch)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=OpenPorchSF)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**ScreenPorch**	área del porche de la pantalla en pies cuadrados
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$ScreenPorch)
+var <- "ScreenPorch"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$ScreenPorch)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**PoolArea** área de la piscina en pies cuadrados
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$PoolArea)
+var <- "PoolArea"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$PoolArea)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=LotArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol = 2)
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**LotFrontage** pies lineales de calle conectados a la propiedad
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$LotFrontage)
+var <- "LotFrontage"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=LotArea)) + geom_point() 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+
+rm(var)
+rm(a)
+
+```
+
+**MiscVal** Valor de la característica miscelánea
+
+Aunque se identifican valores extremos, esta variable puede contener cualquier valor ya que como su nombre indica es un cajon desastre. Por lo que no realizo ninguna acción.
+
+```{r}
+summary(dsDataAll$MiscVal)
+var <- "MiscVal"
+
+a <- dsDataAll %>% 
+    select(var) %>% 
+    filter(get(var)!=0) 
+
+summary(a$MiscVal)
+
+# Comparo con otras variables 
+# la clase de construcción / tipo de vivienda / estilo de vivienda / superficie habitable / precio de venta
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(dsDataAll, aes(x=get(var), y=GrLivArea)) + geom_point()
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+
+# Aunque se identifican valores extremos, esta variable puede contener cualquier valor ya que como su nombre indica es un cajon desastre. Por lo que no realizo ninguna acción.
+
+rm(var)
+rm(a)
+
+```
+
+
+### Resto de variables discretas 
+
+**YearBuilt** Año de construcción original
+
+NO IDENTIFICO OUTLIERS, Aunque hay fechas antiguas, parece que los datos son consistentes.
+
+```{r}
+summary(dsDataAll$YearBuilt)
+
+var <- "YearBuilt"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(data=dsDataAll, aes(x=get(var))) + geom_histogram(aes(color = indTrain)) 
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+# NO IDENTIFICO OUTLIERS
+# Aunque hay fechas antiguas, parece que los datos son consistentes.
+
+rm(var)
+rm(a)
+```
+
+**YearRemodAdd** Año de remodelación
+
+Las casas que se construyeron antes de 1950 se les puso una fecha de remodelación 1950, modifico la fecha de remodelación para casas anteriores a 1950 asignandoles la fecha de construcción
+
+```{r}
+summary(dsDataAll$YearRemodAdd)
+
+var <- "YearRemodAdd"
+
+a <- dsDataAll %>% 
+    select(var) 
+
+plot_grid(
+  ggplot(a, aes(y = get(var))) + geom_boxplot()
+  ,ggplot(data=dsDataAll, aes(x=get(var))) + geom_histogram(aes(color = indTrain)) 
+  ,ggplot(dsDataAll, aes(x=get(var), y=YearBuilt)) + geom_point(aes(color = indTrain))  
+  ,ggplot(dsDataAll, aes(x=get(var), y=SalePrice)) + geom_point() #solo conjunto TRAIN al estar SalePrice NA en test 
+  ,ncol=2)
+
+
+# Parece que a las casas que se construyeron antes de 1950 se les puso una fecha de remodelación 1950
+
+# Verifico si muchas casas tienen la misma fecha de construcción que de remoelación
+dsDataAll %>% 
+  filter(YearBuilt==YearRemodAdd) %>%
+  group_by(indTrain) %>%
+  summarise(n = n())
+
+# Modifico la fecha de remodelación para casas anteriores a 1950 asignandoles la fecha de construcción
+dsDataAll <- dsDataAll %>% 
+  mutate(YearRemodAdd = ifelse(YearBuilt<1950 & YearRemodAdd==1950,YearBuilt,YearRemodAdd)) 
+
+# verifico modificación
+dsDataAll %>% filter(YearRemodAdd != YearRemodAdd) %>%
+    select(Id, YearBuilt, YearRemodAdd, YearRemodAdd)
+
+rm(var)
+rm(a)
+
+```
+
+**FullBath** baños completos por encima del grado
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$FullBath)
+
+ggplot(data=dsDataAll, aes(x=FullBath)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**HalfBath** La mitad de los baños por encima de grado
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$HalfBath)
+
+ggplot(data=dsDataAll, aes(x=HalfBath)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**BedroomAbvGr** número de dormitorios por encima del nivel del sótano
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$BedroomAbvGr)
+
+ggplot(data=dsDataAll, aes(x=BedroomAbvGr)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**KitchenAbvGr** número de cocinas
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$KitchenAbvGr)
+
+ggplot(data=dsDataAll, aes(x=KitchenAbvGr)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**TotRmsAbvGrd** total de habitaciones por encima del grado (no incluye baños)
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$TotRmsAbvGrd)
+
+ggplot(data=dsDataAll, aes(x=TotRmsAbvGrd)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**BsmtFullBath** baños completos en el sótano
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$BsmtFullBath)
+
+ggplot(data=dsDataAll, aes(x=BsmtFullBath)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+
+```
+
+**BsmtHalfBath** medio baño en el sótano
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$BsmtHalfBath)
+
+ggplot(data=dsDataAll, aes(x=BsmtHalfBath)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**GarageYrBlt** año en que se construyó el garaje
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$GarageYrBlt)
+
+ggplot(data=dsDataAll, aes(x=GarageYrBlt)) + geom_histogram(aes(color = indTrain)) 
+
+# Esta variable parece incorrecta (Elimino)
+dsDataAll <- select(dsDataAll, -GarageYrBlt)
+
+```
+
+**GarageCars** tamaño del garaje en la capacidad del automóvil
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$GarageCars)
+
+ggplot(data=dsDataAll, aes(x=GarageCars)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**Fireplaces** número de chimeneas
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$Fireplaces)
+
+ggplot(data=dsDataAll, aes(x=Fireplaces)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+
+```
+
+**MoSold** Mes vendido
+
+NO IDENTIFICO OUTLIERS
+
+```{r}
+summary(dsDataAll$MoSold)
+
+ggplot(data=dsDataAll, aes(x=MoSold)) + geom_histogram(aes(color = indTrain)) 
+
+#NO IDENTIFICO OUTLIERS
+
+```
+
+**YrSold** año vendido
+
+NO IDENTIFICO OUTLIERS Ventas 2006 A 2010 
+
+```{r}
+summary(dsDataAll$YrSold)
+
+ggplot(data=dsDataAll, aes(x=YrSold)) + geom_histogram(aes(color = indTrain)) 
+
+ggplot(dsDataAll, aes(x=YrSold, y=YearBuilt)) + geom_point(aes(color = indTrain))  
+
+dsDataAll %>% 
+  filter(YrSold<YearBuilt) %>%
+  select(Id,YrSold,YearBuilt,SaleType)
+
+# VENTAS DE 2006 A 2010 
+# NO IDENTIFICO OUTLIERS
+```
+
+*Salvar progreso*
+```{r}
+
+dsDataAll <- as.data.frame(dsDataAll)
+save(dsDataAll, file = './F01_Datos/F01_dsDataAll.RData')
+# load('./F01_Datos/F01_dsDataAll.RData')
+# str(dsDataAll$MSSubClass)
+
+rm(dsCampos)
+rm(dsCamposContinua)
+rm(dsCamposDiscreta)
+
+```
+
+# Estudio de correlaciones 
+
+El número tan elevado de variable, 73 después de la primera limpieza, impide realizar una sola matriz que nos muestre las correlaciones por lo que he optado por separar en varias matrices..
+
+Además para poder incluir en el estudio todas las variables es necesario que sean númericas.
+
+
+Conversión de variables nominales a Dummy
+(Esta modificación no se guarda, se realizará en la fase 2)
+
+```{r}
+
+dsCamposActuales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("Campo")
+
+dsCamposFactor <- filter(dsCamposActuales, Tipo == "factor" & Campo != "indTrain") %>% select(Campo)
+
+dsDummy <- dsDataAll %>% select(c("Id",c(dsCamposFactor$Campo)))
+dsDummy <- fastDummies::dummy_cols(dsDummy)
+dsDummy <- select(dsDummy,-c(dsCamposFactor$Campo))
+
+dsDataAll <- select(dsDataAll,-c(dsCamposFactor$Campo))
+
+dsDataAll <- dsDataAll %>% 
+    inner_join(dsDummy, by="Id")  
+
+rm(dsCamposFactor)
+rm(dsCamposActuales)
+rm(dsDummy)
+
+```
+
+Selecciono variables según la clasificación realizada manualmente (segmento y subsegmento)
+
+```{r}
+dsCamposOriginales <- read.csv("./input/campos.csv",sep=";",stringsAsFactors = FALSE)
+
+dsCamposOriginales <- dsCamposOriginales %>%
+  mutate_if(is.factor, as.character) 
+
+# Obtengo campos actuales en dsDataAll
+dsCamposActuales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("CampoNuevo") %>%
+  filter(CampoNuevo != "Id" & CampoNuevo != "indTrain")
+
+# Para los nuevos campos Dummies busco los campos origen
+dsCamposNominalDummy <- dsCamposActuales %>%
+  filter(grepl('[_]', CampoNuevo)) %>%
+  mutate(CampoOrigen = sub("_.*", "", CampoNuevo)) %>%
+  select(CampoNuevo, CampoOrigen)
+
+dsCamposActuales <- dsCamposActuales %>%
+  left_join(dsCamposNominalDummy,by = "CampoNuevo") %>%
+  mutate(CampoOrigen = ifelse(is.na(CampoOrigen),CampoNuevo,CampoOrigen)) %>%
+  mutate(CampoOrigen = ifelse(CampoNuevo=="StreetPave","Street",CampoOrigen))
+
+# Busco se
+dsCamposActuales <- dsCamposActuales %>%
+  inner_join(dsCamposOriginales, by = c("CampoOrigen" = "Campo")) %>%
+  select(CampoNuevo, CampoOrigen, Segmento,Subsegmento)%>% 
+  rename(Campo = CampoNuevo) %>%
+  mutate(grupo = paste(Segmento,Subsegmento,sep="-"))
+
+# Verificación de los grupos que se han formado
+# dsCamposActuales %>% 
+#   group_by(grupo) %>% 
+#   tally()
+
+grupos <- distinct(dsCamposActuales,  grupo) %>% filter(grupo != '-')
+grupos <- grupos[,1]
+
+rm(dsCamposOriginales)
+rm(dsCamposNominalDummy)
+
+```
+
+## Matrices de correlaciones por grupos
+
+
+## Relaciones entre Saleprice y el resto de variables
+
+Calculo tabla con las variables mas correlacionadas con SalePrice
+
+```{r}
+
+datosMatriz <- dsDataAll %>%
+  filter(indTrain == 1) %>%
+  select(-c(Id,indTrain))
+
+#Matriz de correlación con niveles de significación para las correlaciones de Pearson y Spearman 
+dsPrecios.rcorr <- rcorr(as.matrix(datosMatriz), type="pearson")
+
+# Busqueda de las variables mas correlacionadas con Precio de Venta
+dsPreciosR <- data.frame(round(dsPrecios.rcorr$r, 3)) %>%
+  select(corr = SalePrice) %>%
+  rownames_to_column(var = "Campo") %>%
+  filter(Campo!="SalePrice") %>% 
+  mutate(corrAbs = abs(corr)) %>%
+  arrange(desc(corrAbs))
+
+dsPPreciosP <- data.frame(round(dsPrecios.rcorr$P, 5)) %>%
+  select(p = SalePrice) %>%
+  rownames_to_column(var = "Campo") %>% 
+  arrange(p)
+
+dsPreciosR <- dsPreciosR %>% 
+  inner_join(dsPPreciosP, by = "Campo")
+
+head(dsPreciosR,20)
+
+rm(datosMatriz)
+rm(dsPrecios.rcorr)
+rm(dsPPreciosP)
+```
+
+
+## Relaciones entre otras variables 
+
+```{r}
+# Conjunto entero test y train, sin SalePrice
+datosMatriz <- dsDataAll %>%
+  select(-c(Id,indTrain,SalePrice))
+
+#Matriz de correlación con niveles de significación para las correlaciones de Pearson y Spearman 
+dsOtras.rcorr <- rcorr(as.matrix(datosMatriz), type="pearson")
+
+# Busqueda de las variables mas correlacionadas 
+dsOtrasR <- data.frame(round(dsOtras.rcorr$r, 3)) %>%
+  rownames_to_column( var = "row") %>%
+  gather(column, corr, -1) %>%
+  filter(row!=column) %>%
+  mutate(corrAbs = abs(corr)) %>%
+  arrange(desc(corrAbs))
+
+dsOtrasP  <- data.frame(round(dsOtras.rcorr$P, 3)) %>%
+  rownames_to_column( var = "row") %>%
+  gather(column, p, -1) %>%
+  filter(row!=column)
+
+dsOtrasR <- dsOtrasR %>% 
+  inner_join(dsOtrasP, by = c("row", "column"))
+
+head(dsOtrasR,20)
+
+rm(datosMatriz)
+rm(dsOtras.rcorr)
+rm(dsOtrasP)
+
+```
+
+```{r}
+
+for(i in grupos){
+  campos <- dsCamposActuales %>% 
+    filter(grupo==i) %>%
+    select(Campo)
+  
+  datos <- dsDataAll %>%
+    filter(indTrain == 1) %>%
+    select(SalePrice,c(campos$Campo))
+  
+  datosMatriz <- as.matrix(datos)
+  
+  corGrupo <- rcorr(datosMatriz, type="pearson")
+  
+  # Presen  p1 <- ggcorr(corGrupo$r, geom = "circle", nbreaks = 7, size = 3, hjust= 1.1, layout.exp = 4)
+tamos la matríz de correlación en variables continuas 
+
+  grid.arrange(p1, nrow = 1, top=i)
+
+  # Utilizamos corrplot para reordenar la matriz, esto permite ver relaciones de forma mas fácil 
+  # No he podido convertir corrplot a grob 
+  
+  corGrupo$r[is.na(corGrupo$r)] <- 0
+  
+  corrplot(corGrupo$r, p.mat = corGrupo$P, sig.level = 0.05
+                 , insig = "blank", tl.cex = 0.5, type = "lower"
+                 , order = "hclust", col = c("darkorange", "steelblue")
+                 , bg = "lightgreen")
+}
+
+rm(datos)
+rm(datosMatriz)
+rm(corGrupo)
+rm(p1)
+
+```
+
+```{r}
+
+rm(dsCamposActuales)
+rm(dsPreciosR)
+rm(dsOtrasR)
+
+```
+

@@ -1,0 +1,2 @@
+"0","save(dsDataAll, file = './F01_Datos/F01_dsDataAll.RData')"
+"0","#load('./F01_Datos/F01_dsDataAll.RData')"

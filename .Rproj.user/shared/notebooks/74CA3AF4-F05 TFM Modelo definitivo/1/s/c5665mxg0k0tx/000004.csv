@@ -1,0 +1,4 @@
+"0","metricas %>%"
+"0","  group_by(modelo) %>% "
+"0","  summarise(media = mean(Test)) %>%"
+"0","  arrange(media)"

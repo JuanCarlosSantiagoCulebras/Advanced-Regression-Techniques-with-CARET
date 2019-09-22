@@ -1,0 +1,5 @@
+"0",""
+"0","prediccionPrecioVentaLog <- predict(modeloSel, newdata = dsTrain.CV, type = ""raw"")"
+"2","Error in predict.train(modeloSel, newdata = dsTrain.CV, type = ""raw"") : 
+  object 'dsTrain.CV' not found
+"

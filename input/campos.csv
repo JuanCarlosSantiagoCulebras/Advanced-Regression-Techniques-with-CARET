@@ -1,0 +1,358 @@
+Campo;Descripción;Tipo;Valores;Segmento;Subsegmento
+SalePrice; el precio de venta de la propiedad en dólares. Esta es la variable objetivo que está intentando predecir.;Continua;;;
+X1stFlrSF; pies cuadrados del primer piso;Continua;;Edificio;superficie
+X2ndFlrSF; pies cuadrados del segundo piso;Continua;;Edificio;superficie
+LowQualFinSF; pies cuadrados terminados de baja calidad (todos los pisos);Continua;;Edificio;superficie
+GrLivArea; superficie habitable por encima del nivel del suelo (pies cuadrados);Continua;;Edificio;superficie
+OverallQual; material general y calidad de acabado;Ordinal;"10: Very Excellent
+9: Excellent
+8: Very Good
+7: Good
+6: Above Average
+5: Average
+4: Below Average
+3: Fair
+2: Poor
+1: Very Poor";Edificio;calidad
+OverallCond; calificación de condición general;Ordinal;"10: Very Excellent
+9: Excellent
+8: Very Good
+7: Good
+6: Above Average
+5: Average
+4: Below Average
+3: Fair
+2: Poor
+1: Very Poor";Edificio;calidad
+Functional; calificación de funcionalidad del hogar;Ordinal;"Typ: Typical Functionality
+Min1: Minor Deductions 1
+Min2: Minor Deductions 2
+Mod: Moderate Deductions
+Maj1: Major Deductions 1
+Maj2: Major Deductions 2
+Sev: Severely Damaged
+Sal: Salvage only";Edificio;calidad
+Foundation; tipo de material;Nominal;"BrkTil: Brick & Tile
+CBlock: Cinder Block
+PConc: Poured Contrete	
+Slab: Slab
+Stone: Stone
+Wood: Wood";Edificio;material
+YearBuilt;Año de construcción original;Discreta;;Edificio;tiempo
+YearRemodAdd; Año de remodelación;Discreta;;Edificio;tiempo
+MSSubClass; la clase de construcción;Nominal;" 020: 1-STORY 1946 & NEWER ALL STYLES
+ 030: 1-STORY 1945 & OLDER
+ 040: 1-STORY W/FINISHED ATTIC ALL AGES
+ 045: 1-1/2 STORY - UNFINISHED ALL AGES
+ 050: 1-1/2 STORY FINISHED ALL AGES
+ 060: 2-STORY 1946 & NEWER
+ 070: 2-STORY 1945 & OLDER
+ 075: 2-1/2 STORY ALL AGES
+ 080: SPLIT OR MULTI-LEVEL
+ 085: SPLIT FOYER
+ 090: DUPLEX - ALL STYLES AND AGES
+ 120: 1-STORY PUD (Planned Unit Development) - 1946 & NEWER
+ 150: 1-1/2 STORY PUD - ALL AGES
+ 160: 2-STORY PUD - 1946 & NEWER
+ 180: PUD - MULTILEVEL - INCL SPLIT LEV/FOYER
+ 190: 2 FAMILY CONVERSION - ALL STYLES AND AGES";Edificio;clase
+BldgType; tipo de vivienda;Nominal;"1Fam: Single-family Detached	
+2FmCon: Two-family Conversion: originally built as one-family dwelling
+Duplx: Duplex
+TwnhsE: Townhouse End Unit
+TwnhsI: Townhouse Inside Unit";Edificio;clase
+HouseStyle; estilo de vivienda;Nominal;"1Story: One story
+1.5Fin: One and one-half story: 2nd level finished
+1.5Unf: One and one-half story: 2nd level unfinished
+2Story: Two story
+2.5Fin: Two and one-half story: 2nd level finished
+2.5Unf: Two and one-half story: 2nd level unfinished
+SFoyer: Split Foyer
+SLvl: Split Level";Edificio;clase
+FullBath; baños completos por encima del grado;Discreta;;Edificio;Baños
+HalfBath; La mitad de los baños por encima de grado;Discreta;;Edificio;Baños
+BedroomAbvGr; número de dormitorios por encima del nivel del sótano;Discreta;;Edificio;Dormitorios
+KitchenAbvGr; número de cocinas;Discreta;;Edificio;Cocinas
+KitchenQual; calidad de cocina;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Typical/Average
+Fa: Fair
+Po: Poor";Edificio;Cocinas
+TotRmsAbvGrd; total de habitaciones por encima del grado (no incluye baños);Discreta;;Edificio;Habitaciones
+Utilities; tipo de utilidades disponibles;Ordinal;"AllPub: All public Utilities (E,G,W,& S)	
+NoSewr: Electricity, Gas, and Water (Septic Tank)
+NoSeWa: Electricity and Gas Only
+ELO: Electricity only";Edificio;Servicios
+Heating; tipo de calefacción;Nominal;"Floor: Floor Furnace
+GasA: Gas forced warm air furnace
+GasW: Gas hot water or steam heat
+Grav: Gravity furnace	
+OthW: Hot water or steam heat other than gas
+Wall: Wall furnace";Edificio;Servicios
+HeatingQC; calidad y condición de calefacción;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Average/Typical
+Fa: Fair
+Po: Poor";Edificio;Servicios
+CentralAir; aire acondicionado central;Nominal;"N: No
+Y: Yes";Edificio;Servicios
+Electrical; sistema eléctrico;Ordinal;"SBrkr: Standard Circuit Breakers & Romex
+FuseA: Fuse Box over 60 AMP and all Romex wiring (Average)	
+FuseF: 60 AMP Fuse Box and mostly Romex wiring (Fair)
+FuseP: 60 AMP Fuse Box and mostly knob & tube wiring (poor)
+Mix: Mixed";Edificio;Servicios
+RoofStyle; tipo de techo;Nominal;"Flat: Flat
+Gable: Gable
+Gambrel: Gabrel (Barn)
+Hip: Hip
+Mansard: Mansard
+Shed: Shed";Edificio;Techo
+RoofMatl; material del techo;Nominal;"ClyTile: Clay or Tile
+CompShg: Standard (Composite) Shingle
+Membran: Membrane
+Metal: Metal
+Roll: Roll
+Tar: Grv	Gravel & Tar
+WdShake: Wood Shakes
+WdShngl: Wood Shingles";Edificio;Techo
+Exterior1st; cubierta exterior en la casa;Nominal;"AsbShng: Asbestos Shingles
+AsphShn: Asphalt Shingles
+BrkComm: Brick Common
+BrkFace: Brick Face
+CBlock: Cinder Block
+CemntBd: Cement Board
+HdBoard: Hard Board
+ImStucc: Imitation Stucco
+MetalSd: Metal Siding
+Other: Other
+Plywood: Plywood
+PreCast: PreCast	
+Stone: Stone
+Stucco: Stucco
+VinylSd: Vinyl Siding
+Wd: Sdng	Wood Siding
+WdShing: Wood Shingles";Edificio;Cubierta
+Exterior2nd; revestimiento exterior de la casa (si hay más de un material);Nominal;"AsbShng: Asbestos Shingles
+AsphShn: Asphalt Shingles
+BrkComm: Brick Common
+BrkFace: Brick Face
+CBlock: Cinder Block
+CemntBd: Cement Board
+HdBoard: Hard Board
+ImStucc: Imitation Stucco
+MetalSd: Metal Siding
+Other: Other
+Plywood: Plywood
+PreCast: PreCast	
+Stone: Stone
+Stucco: Stucco
+VinylSd: Vinyl Siding
+Wd: Sdng	Wood Siding
+WdShing: Wood Shingles";Edificio;Cubierta
+MasVnrType; tipo de chapa de albañilería;Nominal;"BrkCmn: Brick Common
+BrkFace: Brick Face
+CBlock: Cinder Block
+None: None
+Stone: Stone";Edificio;Cubierta
+MasVnrArea; área de revestimiento de mampostería en pies cuadrados;Continua;;Edificio;Cubierta
+ExterQual; calidad del material exterior;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Average/Typical
+Fa: Fair
+Po: Poor";Edificio;Cubierta
+ExterCond; Condición actual del material en el exterior.;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Average/Typical
+Fa: Fair
+Po: Poor";Edificio;Cubierta
+WoodDeckSF; área de cubierta de madera en pies cuadrados;Continua;;Edificio;Cubierta
+BsmtFinSF1; Tipo 1 terminado pies cuadrados;Continua;;Edificio;Sotano
+BsmtFinType2; Calidad de la segunda área terminada (si está presente);Ordinal;"GLQ: Good Living Quarters
+ALQ: Average Living Quarters
+BLQ: Below Average Living Quarters	
+Rec: Average Rec Room
+LwQ: Low Quality
+Unf: Unfinshed
+NA: No Basement";Edificio;Sotano
+BsmtFinSF2; pies cuadrados terminados tipo 2;Continua;;Edificio;Sotano
+BsmtUnfSF; pies cuadrados inacabados de área de sótano;Continua;;Edificio;Sotano
+TotalBsmtSF; pies cuadrados totales del área del sótano;Continua;;Edificio;Sotano
+BsmtQual; altura del sótano;Ordinal;"Ex: Excellent (100+ inches)	
+Gd: Good (90-99 inches)
+TA: Typical (80-89 inches)
+Fa: Fair (70-79 inches)
+Po: Poor (<70 inches
+NA: No Basement";Edificio;Sotano
+BsmtCond; estado general del sótano;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Typical - slight dampness allowed
+Fa: Fair - dampness or some cracking or settling
+Po: Poor - Severe cracking, settling, or wetness
+NA: No Basement";Edificio;Sotano
+BsmtExposure; paredes de sótano a nivel de jardín o de huelga;Ordinal;"Gd: Good Exposure
+Av: Average Exposure (split levels or foyers typically score average or above)	
+Mn: Mimimum Exposure
+No: No Exposure
+NA: No Basement";Edificio;Sotano
+BsmtFinType1; Calidad del área terminada del sótano;Ordinal;"GLQ: Good Living Quarters
+ALQ: Average Living Quarters
+BLQ: Below Average Living Quarters	
+Rec: Average Rec Room
+LwQ: Low Quality
+Unf: Unfinshed
+NA: No Basement";Edificio;Sotano
+BsmtFullBath; baños completos en el sótano;Discreta;;Edificio;Sotano
+BsmtHalfBath; medio baño en el sótano;Discreta;;Edificio;Sotano
+GarageType; ubicación del garaje;Nominal;"2Types: More than one type of garage
+Attchd: Attached to home
+Basment: Basement Garage
+BuiltIn: Built-In (Garage part of house - typically has room above garage)
+CarPort: Car Port
+Detchd: Detached from home
+NA: No Garage";Edificio;Garage
+GarageYrBlt; año en que se construyó el garaje;Discreta;;Edificio;Garage
+GarageFinish; acabado interior del garaje;Ordinal;"Fin: Finished
+RFn: Rough Finished	
+Unf: Unfinished
+NA: No Garage";Edificio;Garage
+GarageCars; tamaño del garaje en la capacidad del automóvil;Discreta;;Edificio;Garage
+GarageArea; tamaño del garaje en pies cuadrados;Continua;;Edificio;Garage
+GarageQual; calidad de garaje;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Typical/Average
+Fa: Fair
+Po: Poor
+NA: No Garage";Edificio;Garage
+GarageCond; condición del garaje;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Typical/Average
+Fa: Fair
+Po: Poor
+NA: No Garage";Edificio;Garage
+Fireplaces; número de chimeneas;Discreta;;Edificio;Chimenea
+FireplaceQu; calidad de chimenea;Ordinal;"Ex: Excellent - Exceptional Masonry Fireplace
+Gd: Good - Masonry Fireplace in main level
+TA: Average - Prefabricated Fireplace in main living area or Masonry Fireplace in basement
+Fa: Fair - Prefabricated Fireplace in basement
+Po: Poor - Ben Franklin Stove
+NA: No Fireplace";Edificio;Chimenea
+OpenPorchSF; área de porche abierto en pies cuadrados;Continua;;Edificio;Porche
+EnclosedPorch; área de porche cerrado en pies cuadrados;Continua;;Edificio;Porche
+X3SsnPorch; área de porche de tres estaciones en pies cuadrados;Continua;;Edificio;Porche
+ScreenPorch; área del porche de la pantalla en pies cuadrados;Continua;;Edificio;Porche
+PavedDrive; entrada pavimentada;Ordinal;"Y: Paved 
+P: Partial Pavement
+N: Dirt/Gravel";Edificio;Entrada
+PoolArea; área de la piscina en pies cuadrados;Continua;;Edificio;Piscina
+PoolQC; calidad de la piscina;Ordinal;"Ex: Excellent
+Gd: Good
+TA: Average/Typical
+Fa: Fair
+NA: No Pool";Edificio;Piscina
+Fence; calidad de la cerca;Ordinal;"GdPrv: Good Privacy
+MnPrv: Minimum Privacy
+GdWo: Good Wood
+MnWw: Minimum Wood/Wire
+NA: No Fence";Edificio;Entrada
+MSZoning; la clasificación general de zonificación;Nominal;"A: Agriculture
+C: Commercial
+FV: Floating Village Residential
+I: Industrial
+RH: Residential High Density
+RL: Residential Low Density
+RP: Residential Low Density Park 
+RM: Residential Medium Density";Ubicación;
+Neighborhood; ubicaciones físicas dentro de los límites de la ciudad de Ames;Nominal;"Blmngtn: Bloomington Heights
+Blueste: Bluestem
+BrDale: Briardale
+BrkSide: Brookside
+ClearCr: Clear Creek
+CollgCr: College Creek
+Crawfor: Crawford
+Edwards: Edwards
+Gilbert: Gilbert
+Greens: Greens
+GrnHill: Green Hills
+IDOTRR: Iowa DOT and Rail Road
+Landmrk: Landmark
+MeadowV: Meadow Village
+Mitchel: Mitchell
+Names: North Ames
+NoRidge: Northridge
+NPkVill: Northpark Villa
+NridgHt: Northridge Heights
+NWAmes: Northwest Ames
+OldTown: Old Town
+SWISU: South & West of Iowa State University
+Sawyer: Sawyer
+SawyerW: Sawyer West
+Somerst: Somerset
+StoneBr: Stone Brook
+Timber: Timberland
+Veenker: Veenker";Ubicación;
+Street; tipo de acceso por carretera;Nominal;"Grvl: Gravel	
+Pave: Paved";Ubicación;
+Alley; tipo de acceso al callejón;Nominal;"Grvl: Gravel
+Pave: Paved
+NA: No alley access";Ubicación;
+Condition1; Proximidad a la carretera principal o ferrocarril;Nominal;"Artery: Adjacent to arterial street
+Feedr: Adjacent to feeder street	
+Norm: Normal	
+RRNn: Within 200' of North-South Railroad
+RRAn: Adjacent to North-South Railroad
+PosN: Near positive off-site feature--park, greenbelt, etc.
+PosA: Adjacent to postive off-site feature
+RRNe: Within 200' of East-West Railroad
+RRAe: Adjacent to East-West Railroad";Ubicación;
+Condition2; Proximidad a la carretera principal o al ferrocarril (si hay un segundo);Nominal;"Artery: Adjacent to arterial street
+Feedr: Adjacent to feeder street	
+Norm: Normal	
+RRNn: Within 200' of North-South Railroad
+RRAn: Adjacent to North-South Railroad
+PosN: Near positive off-site feature--park, greenbelt, etc.
+PosA: Adjacent to postive off-site feature
+RRNe: Within 200' of East-West Railroad
+RRAe: Adjacent to East-West Railroad";Ubicación;
+LotFrontage; pies lineales de calle conectados a la propiedad;Continua;;Proiedad;
+LotArea; tamaño del lote en pies cuadrados;Continua;;Proiedad;
+LotShape; forma general de propiedad;Ordinal;"Reg: Regular	
+IR1: Slightly irregular
+IR2: Moderately Irregular
+IR3: Irregular";Proiedad;
+LandContour; llanura de la propiedad;Nominal;"Lvl: Near Flat/Level	
+Bnk: Banked - Quick and significant rise from street grade to building
+HLS: Hillside - Significant slope from side to side
+Low: Depression";Proiedad;
+LandSlope; pendiente de la propiedad;Ordinal;"Gtl: Gentle slope
+Mod: Moderate Slope	
+Sev: Severe Slope";Proiedad;
+LotConfig; configuración del lote;Nominal;"Inside: Inside lot
+Corner: Corner lot
+CulDSac: Cul-de-sac
+FR2: Frontage on 2 sides of property
+FR3: Frontage on 3 sides of property";Proiedad;
+MiscFeature; características varias no cubiertas en otras categorías;Nominal;"Elev: Elevator
+Gar2: 2nd Garage (if not described in garage section)
+Othr: Other
+Shed: Shed (over 100 SF)
+TenC: Tennis Court
+NA: None";Otras caracteristicas;
+MiscVal; $ Valor de la característica miscelánea;Continua;;Otras caracteristicas;
+MoSold; Mes vendido;Discreta;;Venta;
+YrSold; año vendido;Discreta;;Venta;
+SaleType; Tipo de venta;Nominal;"WD: Warranty Deed - Conventional
+CWD: Warranty Deed - Cash
+VWD: Warranty Deed - VA Loan
+New: Home just constructed and sold
+COD: Court Officer Deed/Estate
+Con: Contract 15% Down payment regular terms
+ConLw: Contract Low Down payment and low interest
+ConLI: Contract Low Interest
+ConLD: Contract Low Down
+Oth: Other";Venta;
+SaleCondition; Condiciones de venta;Nominal;"Normal: Normal Sale
+Abnorml: Abnormal Sale -  trade, foreclosure, short sale
+AdjLand: Adjoining Land Purchase
+Alloca: Allocation - two linked properties with separate deeds, typically condo with a garage unit	
+Family: Sale between family members
+Partial: Home was not completed when last assessed (associated with New Homes)";Venta;

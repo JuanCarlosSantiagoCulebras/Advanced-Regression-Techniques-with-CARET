@@ -1,0 +1,720 @@
+---
+title: "TFM - Kaggle House Prices: Advanced Regression Techniques with caret"
+subtitle: "03 Selección de predictores con caret"
+author: "Juan Carlos Santiago Culebras"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  #html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F, warning=F)
+```
+
+El objetivo de esta fase es reducir el volumen de características, de tal forma que únicamente los predictores que están relacionados con la variable respuestas se incluyan en el modelo.
+
+Para ello utilizaremos varias de las metodología de selección de características (feature selection) que ofrece el paquete caret.
+
+* Métodos wrapper: evalúan múltiples modelos utilizando procedimientos que agregan y / o eliminan predictores para encontrar la combinación óptima que maximice el rendimiento del modelo, son algoritmos de búsqueda donde los predictores son las entradas y el modelo a optimizar es la salida.
+** Eliminación de características recursivas
+** Algoritmos genéticos
+** Simulated annealing
+
+* Métodos de filtro: Analizan la relación que tiene cada predictor con la variable respuesta, evaluando la relevancia de los predictores fuera de los modelos y seleccionando los que pasan algún criterio.
+
+Además, cada uno de estos métodos puede utilizar distintos algoritmos (regresión lineal, naive bayes, random forest) y métodos de entrenamiento (Validación cruzada o bootstrapping).
+
+# Primeros pasos 
+
+## Librerías
+
+Realizamos la carga de las librerías necesarias
+
+```{r,results='hide', message=F, warning=F}
+
+if(!is.element("dplyr", installed.packages()[, 1]))
+      install.packages("dplyr", repos = 'http://cran.us.r-project.org')
+library(dplyr)
+
+if(!is.element("tidyr", installed.packages()[, 1]))
+      install.packages("tidyr", repos = 'http://cran.us.r-project.org')
+library(tidyr)
+
+if(!is.element("ggplot2", installed.packages()[, 1]))
+      install.packages("ggplot2", repos = 'http://cran.us.r-project.org')
+library(ggplot2)
+
+if(!is.element("tibble", installed.packages()[, 1]))
+      install.packages("tibble", repos = 'http://cran.us.r-project.org')
+library(tibble)
+
+if(!is.element("randomForest", installed.packages()[, 1]))
+      install.packages("randomForest", repos = 'http://cran.us.r-project.org')
+library(randomForest)
+
+if(!is.element("recipes", installed.packages()[, 1]))
+      install.packages("recipes", repos = 'http://cran.us.r-project.org')
+library(recipes)
+
+if(!is.element("caret", installed.packages()[, 1]))
+      install.packages("caret", repos = 'http://cran.us.r-project.org')
+library(caret)
+
+if(!is.element("gam", installed.packages()[, 1]))
+      install.packages("gam", repos = 'http://cran.us.r-project.org')
+library(gam)
+
+```
+
+## Cargamos datos
+
+Partimos de los dataset generados en la fase 2 
+
+Repetimos el proceso de selección con distintos dataset de origen (F02_01_dsDataAll y F02_03_dsDataAll_Recipe) para poder comparar soluciones.
+
+```{r}
+strOrigenF2 <- 'F02_01_dsDataAll'
+
+# Segunda ejecución
+#strOrigenF2 <- 'F02_03_dsDataAll_Recipe'
+
+file <- paste('./F02_Datos/',strOrigenF2,'.RData',sep='') 
+
+load(file)
+
+
+dirSalida <- paste('./F03_SelPredictores/',strOrigenF2,sep='')
+  
+if (!file.exists(dirSalida)){
+     dir.create(file.path(dirSalida))
+} 
+
+rm(strOrigenF2)
+rm(file)
+```
+
+Lectura de modelos ya entrenados si se realiza es estudio posteriormente
+```{r}
+# load('./F03_SelPredictores/F02_01_dsDataAll/F03_1_rfe_lm.RData')
+# load('./F03_SelPredictores/F02_01_dsDataAll/F03_2_rfe_rf.RData')
+# load('./F03_SelPredictores/F02_01_dsDataAll/F03_3_ga_20.RData')
+# load('./F03_SelPredictores/F02_01_dsDataAll/F03_4_ga_100.RData')
+# load('./F03_SelPredictores/F02_01_dsDataAll/F03_5_sbf_lm.RData')
+# load('./F03_SelPredictores/F02_01_dsDataAll/F03_6_sbf_rf.RData')
+```
+
+## Separamos los datos 
+
+Dividimos el dataset de origen:
+*dsTrain - Que a su vez se divide en
+**dsTrain.training
+**dsTrain.CV 
+*dsTest (no se utiliza en esta fase)
+
+```{r}
+
+dsTrain <- dsDataAll %>%
+  filter(indTrain == 1) %>%
+  select(SalePrice, everything()) %>%
+  select(-c(Id,indTrain))
+
+dim(dsTrain)
+
+set.seed(123)
+iTrain  <- createDataPartition(y=dsTrain$SalePrice, p=0.7, list=F)
+
+dsTrain.training <- dsTrain[iTrain, ]
+dsTrain.CV       <- dsTrain[-iTrain, ]
+
+rm(iTrain)
+```
+
+# Selección de predictores mediante caret
+
+Definimos los parámetros de control para realizar procesos
+
+He seleccionado como método de evaluación, la validación cruzada con 5 particiones y 5 repeticiones.
+
+```{r}
+# Parámetros para CV y Bootstrapping
+particiones = 5
+repeticiones = 5
+
+# conjunto de números de predictores a calcular 
+# nos permiten posteriormente identificar el número de predictores optimo 
+subsets <- c(5, seq(10, 20, by=2), seq(25, 60, by=5)) # Origen F02_01_dsDataAll
+# subsets <- c(seq(10, 170, by=10)) # Origen F02_03_dsDataAll_Recipe
+
+```
+
+
+## Métodos wrapper
+
+### RFE (Recursive feature elimination) de Caret
+
+RFE (Recursive feature elimination) de Caret ofrece multitud de posibilidades para ejecutar estas funciones, yo he implementado varias de ellas:
+*Regresión lineal y validación cruzada
+*Randon Forest y validación cruzada
+
+Es necesario indicar el parámetro “size” que permite determinar sobre que tamaños de conjuntos de variables se desea que busque el algoritmo. En este caso y después de realizar varias pruebas he optado por buscar en conjuntos con tamaños:
+
+* (5 10 12 14 16 18 20 25 30 35 40 45 50 55 60)
+
+Esto me permite dibujar gráficas para ver la evolución de RMSE con los distintos subconjuntos, caret además añade un cálculo con todas las posibles variables. En algunos casos ha sido necesario refinar la búsqueda, modificando estos conjuntos.
+
+```{r}
+subsets <- c(5, seq(10, 20, by=2), seq(25, 60, by=5)) # Origen F02_01_dsDataAll
+```
+
+#### Eliminación Recursiva con Regresión linal y validación cruzada
+
+```{r}
+ctrl <- rfeControl(functions = lmFuncs
+                      ,method = "repeatedcv" # Validación cruzada
+                      ,number = particiones
+                      ,repeats = repeticiones
+                      ,verbose = FALSE)
+
+t <- proc.time() # Inicia el cronómetro
+F03_1_rfe_lm <- rfe(SalePrice ~ .
+              , data = dsTrain.training 
+              , sizes = subsets
+              , metric = "RMSE"
+              , rfeControl = ctrl)
+proc.time()-t    # Detiene el cronómetro
+
+# Tiempo de ejecución
+# user  system elapsed 
+# 5.00    0.20    5.15  
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'F03_1_rfe_lm.RData',sep="/")
+save(F03_1_rfe_lm, file = fileOuput)
+
+```
+
+Estudio de resultados
+```{r}
+
+F03_1_rfe_lm
+
+dsResults <- F03_1_rfe_lm$results
+
+# Métricas promedio de cada tamaño
+dsResults %>% 
+  group_by(Variables) %>%
+  summarise(media_RMSE = mean(RMSE), media_Rsquared = mean(Rsquared)) %>%
+  arrange(media_RMSE)
+
+
+mejorAbsoluto <- pickSizeBest(select(dsResults,RMSE,Variables)
+                              , metric = "RMSE"
+                              , maximize = FALSE)
+mejorRendimiento <- pickSizeTolerance(select(dsResults,RMSE,Variables)
+                                  , metric = "RMSE"
+                                  , maximize = FALSE)
+
+## Percent Loss in performance (positive)
+# ToDo: example$PctLoss <- (example$RMSE - min(example$RMSE))/min(example$RMSE)*100
+
+# Gráfica de disminución de RMSE
+ggplot(data = dsResults, aes(x = Variables, y = RMSE)) +
+  geom_line(color = "blue") +
+  scale_x_continuous(breaks = unique(dsResults$Variables)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = RMSE - RMSESD, ymax = RMSE + RMSESD),
+                width = 0.2) +
+  
+  geom_point(data = filter(dsResults, Variables==mejorAbsoluto) 
+             , shape=0, cex= 1.5, color = "red") +
+  
+  geom_point(data = filter(dsResults, Variables==mejorRendimiento)
+             , shape = 4, cex= 1.5, color = "green") +
+
+  theme_bw()
+
+plot(F03_1_rfe_lm,type = c("g", "o"))
+
+resumenResultatos <- bind_rows(
+  filter(dsResults, Variables==mejorAbsoluto) %>%
+    mutate(modelo = 'F03_1_rfe_lm', tipo = 'mejorAbsoluto'),
+  filter(dsResults, Variables==mejorRendimiento) %>%
+    mutate(modelo = 'F03_1_rfe_lm', tipo = 'mejorRendimiento'))
+
+```
+
+#### Eliminación Recursiva con Randon Forest y validación cruzada
+
+```{r}
+
+ctrl <- rfeControl(functions = rfFuncs
+                      ,method = "repeatedcv" # Validación cruzada
+                      ,number = particiones
+                      ,repeats = repeticiones
+                      ,verbose = FALSE)
+
+t <- proc.time() # Inicia el cronómetro
+F03_2_rfe_rf <- rfe(SalePrice ~ .
+              , data = dsTrain.training         
+              , sizes = subsets
+              , metric = "RMSE"
+              , rfeControl = ctrl)
+proc.time()-t    # Detiene el cronómetro1
+
+# Tiempo de ejecución
+# user  system elapsed 
+# 1713.67    9.26 1734.17 
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'F03_2_rfe_rf.RData',sep="/")
+save(F03_2_rfe_rf, file = fileOuput)
+
+```
+
+Estudio de resultados
+```{r}
+
+F03_2_rfe_rf
+
+dsResults <- F03_2_rfe_rf$results
+
+# Métricas promedio de cada tamaño
+dsResults %>% 
+  group_by(Variables) %>%
+  summarise(media_RMSE = mean(RMSE), media_Rsquared = mean(Rsquared)) %>%
+  arrange(media_RMSE)
+
+
+mejorAbsoluto <- pickSizeBest(select(dsResults,RMSE,Variables)
+                              , metric = "RMSE"
+                              , maximize = FALSE)
+mejorRendimiento <- pickSizeTolerance(select(dsResults,RMSE,Variables)
+                                  , metric = "RMSE"
+                                  , maximize = FALSE)
+
+## Percent Loss in performance (positive)
+# ToDo: example$PctLoss <- (example$RMSE - min(example$RMSE))/min(example$RMSE)*100
+
+# Gráfica de disminución de RMSE
+ggplot(data = dsResults, aes(x = Variables, y = RMSE)) +
+  geom_line(color = "blue") +
+  scale_x_continuous(breaks = unique(dsResults$Variables)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = RMSE - RMSESD, ymax = RMSE + RMSESD),
+                width = 0.2) +
+  
+  geom_point(data = filter(dsResults, Variables==mejorAbsoluto) 
+             , shape=0, cex= 1.5, color = "red") +
+  
+  geom_point(data = filter(dsResults, Variables==mejorRendimiento)
+             , shape = 4, cex= 1.5, color = "green") +
+
+  theme_bw()
+
+plot(F03_2_rfe_rf,type = c("g", "o"))
+
+# guardo los mejores resultados para comparar 
+resumenResultatos <- bind_rows(
+  resumenResultatos,
+  filter(dsResults, Variables==mejorAbsoluto) %>%
+    mutate(modelo = 'F03_2_rfe_rf', tipo = 'mejorAbsoluto'),
+  filter(dsResults, Variables==mejorRendimiento) %>%
+    mutate(modelo = 'F03_2_rfe_rf', tipo = 'mejorRendimiento')
+  )
+
+```
+
+
+## Algoritmos Genéticos
+
+### Algoritmos Genéticos con Randon Forest y validación cruzada
+
+20 Iteraciones
+```{r}
+
+# ctrl <- gafsControl(functions = rfGA,
+#                        method = "cv",
+#                        number = particiones,
+#                        allowParallel = TRUE,
+#                        genParallel = TRUE, 
+#                        verbose = FALSE)
+# 
+# 
+# F03_3_ga_20 <- gafs(x = dsTrain.training[,-1]
+#               , y = dsTrain.training$SalePrice
+#               , iters = 20 
+#               , popSize = 10
+#               , gafsControl = ctrl
+#               )
+# 
+# # Tiempo de ejecución
+# # user  system elapsed 
+# #  
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_3_ga_20.RData',sep="/")
+# save(F03_3_ga_20, file = fileOuput)
+
+```
+
+Estudio de resultados
+```{r}
+# 
+# F03_3_ga_20
+# F03_3_ga_20$optVariables
+# 
+# # Métricas promedio de cada iteración
+# ga.results <- F03_3_ga_20$external %>%
+#   group_by(Iter) %>%
+#   dplyr::summarise(media_RMSE = mean(RMSE)
+#                     , media_Rsquared = mean(Rsquared)) %>%
+#   arrange(media_RMSE)
+# 
+# ga.results
+# 
+# # Gráfica de disminución de RMSE
+# ggplot(data = ga.results, aes(x = Iter, y = media_RMSE)) +
+#   geom_line() +
+#   scale_x_continuous(breaks  = unique(ga.results$Iter)) +
+#   theme_bw()
+
+```
+
+100 Iteraciones
+```{r}
+
+# ctrl <- gafsControl(functions = rfGA,
+#                        method = "cv",
+#                        number = particiones,
+#                        allowParallel = TRUE,
+#                        genParallel = TRUE, 
+#                        verbose = FALSE)
+# 
+# t <- proc.time() # Inicia el cronómetro
+# F03_4_ga_100 <- gafs(x = dsTrain.training[,-1]
+#               , y = dsTrain.training$SalePrice
+#               , iters = 100 
+#               , popSize = 10
+#               , gafsControl = ctrl
+#               )
+# proc.time()-t    # Detiene el cronómetro
+# 
+# # Tiempo de ejecución
+# # user  system elapsed 
+# # 6543.12   24.70 6568.33
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_4_ga_100.RData',sep="/")
+# save(F03_4_ga_100, file = fileOuput)
+
+load('./F03_SelPredictores/F03_4_ga_100.RData')
+
+```
+
+Estudio de resultados
+```{r}
+F03_4_ga_100
+```
+
+Mejores variables
+```{r}
+F03_4_ga_100$optVariables
+```
+
+Métricas promedio de cada iteración
+```{r}
+ga.results <- F03_4_ga_100$external %>%
+  group_by(Iter) %>%
+  dplyr::summarise(media_RMSE = mean(RMSE)
+                    , media_Rsquared = mean(Rsquared)) %>%
+  arrange(media_RMSE)
+
+ga.results
+```
+
+ Gráfica de disminución de RMSE
+```{r}
+ggplot(data = ga.results, aes(x = Iter, y = media_RMSE)) +
+  geom_line() +
+  scale_x_continuous(breaks  = unique(ga.results$Iter)) +
+  theme_bw()
+
+```
+
+## Métodos de filtrado
+
+### Selección por filtros Recursiva con Regresión linal y validación cruzada
+
+```{r}
+
+ctrl <- sbfControl(functions = lmSBF
+                  , method = "repeatedcv"
+                  , number = particiones
+                  , repeats = repeticiones
+                  , verbose = FALSE
+                  , saveDetails = TRUE)
+
+t <- proc.time() # Inicia el cronómetro
+F03_5_sbf_lm <- sbf(SalePrice ~ .
+              , data = dsTrain.training
+              , sbfControl = ctrl
+              )           
+proc.time()-t    # Detiene el cronómetro
+
+# Tiempo de ejecución
+# user  system elapsed 
+#  304.03    4.96  308.92 
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'F03_5_sbf_lm.RData',sep="/")
+save(F03_5_sbf_lm, file = fileOuput)
+
+```
+
+Estudio de resultados
+```{r}
+
+F03_5_sbf_lm
+
+summary(F03_5_sbf_lm)
+
+F03_5_sbf_lm$optVariables
+
+densityplot(F03_5_sbf_lm)
+histogram(F03_5_sbf_lm)
+predictors(F03_5_sbf_lm)
+
+# Similar to rfe, there are methods for predictors, densityplot, histogram and varImp
+
+```
+
+### Selección por filtros Recursiva con random forest y validación cruzada
+
+```{r}
+
+ctrl <- sbfControl(functions = rfSBF
+                            , method = "repeatedcv"
+                            , number = particiones
+                            , repeats = repeticiones
+                            , verbose = FALSE
+                            , saveDetails = TRUE)
+
+t <- proc.time() # Inicia el cronómetro
+F03_6_sbf_rf <- sbf(SalePrice ~ .
+              , data = dsTrain.training
+              , sbfControl = ctrl
+              )           
+proc.time()-t    # Detiene el cronómetro
+
+
+# Tiempo de ejecución
+# user  system elapsed 
+#  304.03    4.96  308.92 
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'F03_6_sbf_rf.RData',sep="/")
+save(F03_6_sbf_rf, file = fileOuput)
+
+```
+
+Estudio de resultados
+```{r}
+
+F03_6_sbf_rf
+
+summary(F03_6_sbf_rf)
+
+F03_6_sbf_rf$optVariables
+
+densityplot(F03_6_sbf_rf)
+histogram(F03_6_sbf_rf)
+predictors(F03_6_sbf_rf)
+
+```
+
+# Comparación de selección de caracteristicas
+
+Comparación de variables seleccionadas según origen
+
+
+## Selección final de variables
+
+De los conjuntos de variables seleccionados cojo el que mejor
+
+Selección RFE
+```{r}
+select(resumenResultatos, modelo, tipo, Variables, RMSE) %>% arrange(RMSE)
+
+# Origen F02_01_dsDataAll
+# F03_1_rfe_lm Devuelve todas las filas por lo que no se coje
+# F03_2_rfe_rf Cojemos dos conjuntos:
+
+# mejor rendimiento (18 predictores) 
+
+# ESTE CODIGO DE SELECCIÓN SE EJECUTA MANUALMENTE DESPUES DE REALIZAR LOS MODELOS
+# dsVarSel <- as.data.frame(F03_2_rfe_rf$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo)) %>%
+#   top_n(-18, Orden)
+# 
+# dsDataAllVarSel <- dsDataAll %>%
+#     select(SalePrice, indTrain, Id, c(dsVarSel$Campo))
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_11_dsDataSelVar_rfe_MejorRendimiento_top18.RData',sep="/")
+# save(dsDataAllVarSel, file = fileOuput)
+# 
+# # mejor absoluto (60 predictores)
+# 
+# dsVarSel <- as.data.frame(F03_2_rfe_rf$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo)) %>%
+#   top_n(-60, Orden)
+# 
+# dsDataAllVarSel <- dsDataAll %>%
+#     select(SalePrice, indTrain, Id, c(dsVarSel$Campo))
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_12_dsDataSelVar_rfe_MenorRMSE_top60.RData',sep="/")
+# save(dsDataAllVarSel, file = fileOuput)
+
+
+# Origen F02_01_dsDataAll
+# F03_1_rfe_lm Devuelve todas las filas por lo que no se coje
+# F03_2_rfe_rf Cojemos solo 2 conjunto:
+
+# F03_1_rfe_lm	mejorAbsoluto	86	0.1257209	
+# F03_1_rfe_lm	mejorRendimiento	86	0.1257209	
+# F03_2_rfe_rf	mejorAbsoluto	55	0.1365676	
+# F03_2_rfe_rf	mejorRendimiento	18	0.1375916
+
+# En este caso escogemos un solo conjunto mejor rendimiento (90 predictores) 
+
+# ESTE CODIGO DE SELECCIÓN SE EJECUTA MANUALMENTE DESPUES DE REALIZAR LOS MODELOS
+# dsVarSel <- as.data.frame(F03_2_rfe_rf$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo)) %>%
+#   top_n(-18, Orden)
+# 
+# dsDataAllVarSel <- dsDataAll %>%
+#     select(SalePrice, indTrain, Id, c(dsVarSel$Campo))
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_11_dsDataSelVar_rfe_MejorRendimiento_top18.RData',sep="/")
+# save(dsDataAllVarSel, file = fileOuput)
+# 
+# # mejor absoluto (60 predictores)
+# 
+# dsVarSel <- as.data.frame(F03_2_rfe_rf$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo)) %>%
+#   top_n(-55, Orden)
+# 
+# dsDataAllVarSel <- dsDataAll %>%
+#     select(SalePrice, indTrain, Id, c(dsVarSel$Campo))
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_12_dsDataSelVar_rfe_MenorRMSE_top55.RData',sep="/")
+# save(dsDataAllVarSel, file = fileOuput)
+
+
+```
+
+Selección Algoritmos Genéticos
+```{r}
+# La selección mediante algoritmos geneticos solo se ejecuta con el conjunto F02_01_dsDataAll
+# y se guardan las variables seleccionadas
+
+# ESTE CODIGO DE SELECCIÓN SE EJECUTA MANUALMENTE DESPUES DE REALIZAR LOS MODELOS
+# dsDataAllVarSel <- dsDataAll %>%
+#     select(SalePrice, indTrain, Id, c(F03_4_ga_100$optVariables))
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_13_dsDataSelVar_ga_100_46.RData',sep="/")
+# save(dsDataAllVarSel, file = fileOuput)
+
+```
+
+Selección SBF
+```{r}
+
+F03_5_sbf_lm 	
+F03_6_sbf_rf 
+
+# Origen F02_01_dsDataAll
+# F03_5_sbf_lm  variables 84 RMSE 0.1319	
+# F03_6_sbf_rf  variables 79 RMSE 0.1389
+# No seleccionamos conjunto
+
+# Origen F02_03_dsDataAll_Recipe
+# F03_5_sbf_lm  variables 80 RMSE 0.1316	
+# F03_6_sbf_rf  variables 76 RMSE 0.1382
+# No seleccionamos conjunto
+
+
+```
+
+
+```{r}
+# Mezcla
+
+# Se realiza a mano
+
+# dsVarSel001 <- as.data.frame(F03_1_rfe_lm$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo))
+# 
+# dsVarSel002 <- as.data.frame(F03_2_rfe_rf$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo))
+# 
+# dsVarSel004 <- as.data.frame(F03_4_ga_100$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo))
+# 
+# dsVarSel005 <- as.data.frame(F03_5_sbf_lm$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo))
+# 
+# dsVarSel006 <- as.data.frame(F03_6_sbf_rf$optVariables) %>%
+#   rename(Campo = 1) %>%
+#   rownames_to_column("Orden") %>%
+#   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo))
+# 
+# dsVarSelMix30 <- bind_rows(dsVarSel001,dsVarSel002,dsVarSel005,dsVarSel005) %>%
+#   group_by(Campo) %>%
+#   dplyr::summarise(Orden = mean(Orden)) %>%
+#   arrange(Orden) %>%
+#   top_n(-30, Orden)
+# 
+# dsDataAllVarSel <- dsDataAll %>%
+#     select(SalePrice, indTrain, Id, c(dsVarSelMix30$Campo))
+# 
+# # Guardo resultado del calculo
+# fileOuput <- paste(dirSalida,'F03_14_dsDataSelVar_mezcla_31.RData',sep="/")
+# save(dsDataAllVarSel, file = fileOuput)
+
+```
+
+Guardamos tambien el dataset completo
+```{r}
+dsDataAllVarSel <- dsDataAll 
+
+# Guardo resultado del calculo
+fileOuput <- paste(dirSalida,'F03_15_dsDataSelVar_Completo.RData',sep="/")
+save(dsDataAllVarSel, file = fileOuput)
+```
+
+
+
+
+

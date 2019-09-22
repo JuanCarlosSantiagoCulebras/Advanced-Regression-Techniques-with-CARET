@@ -1,0 +1,326 @@
+---
+title: "TFM - Kaggle House Prices: Advanced Regression Techniques with caret"
+subtitle: "02 - 01 Ingeniería de características"
+author: "Juan Carlos Santiago Culebras"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  #html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F, warning=F)
+```
+
+En esta fase se profundiza en el análisis descriptivo del conjunto de datos, y se intentará modificar el conjunto de características para aumentar su eficacia predictiva. 
+
+La idea es generar variaciones sobre cómo realizar las transformaciones, tanto en el tipo de transformaciones a aplicar como en el orden en el que se realizan y pasar las diferentes salidas a las siguientes fases de tal forma que se puedan identificar que opciones son las mejores.
+
+
+# Primeros pasos 
+
+## Librerías
+
+Realizamos la carga de las librerías necesarias
+
+```{r,results='hide', message=F, warning=F}
+
+if(!is.element("dplyr", installed.packages()[, 1]))
+      install.packages("dplyr", repos = 'http://cran.us.r-project.org')
+library(dplyr)
+
+if(!is.element("tidyr", installed.packages()[, 1]))
+      install.packages("tidyr", repos = 'http://cran.us.r-project.org')
+library(tidyr)
+
+if(!is.element("ggplot2", installed.packages()[, 1]))
+      install.packages("ggplot2", repos = 'http://cran.us.r-project.org')
+library(ggplot2)
+
+if(!is.element("tibble", installed.packages()[, 1]))
+      install.packages("tibble", repos = 'http://cran.us.r-project.org')
+library(tibble)
+
+# grid.arrange / marrangeGrob
+library(gridExtra)
+
+# correlation matrixes - rcorr (niveles de significación)
+if(!is.element("Hmisc", installed.packages()[, 1]))
+      install.packages("Hmisc", repos = 'http://cran.us.r-project.org')
+library(Hmisc)
+
+# correlation matrixes - ggcorr
+if(!is.element("GGally", installed.packages()[, 1]))
+      install.packages("GGally", repos = 'http://cran.us.r-project.org')
+library(GGally)
+
+# correlation matrixes - corrplot
+if(!is.element("corrplot", installed.packages()[, 1]))
+      install.packages("corrplot", repos = 'http://cran.us.r-project.org')
+library(corrplot)
+
+
+if(!is.element("caret", installed.packages()[, 1]))
+      install.packages("caret", repos = 'http://cran.us.r-project.org')
+library(caret)
+
+if(!is.element("fastDummies", installed.packages()[, 1]))
+      install.packages("fastDummies", repos = 'http://cran.us.r-project.org')
+library(fastDummies)
+
+if(!is.element("devtools", installed.packages()[, 1]))
+      install.packages("devtools", repos = 'http://cran.us.r-project.org')
+library(devtools)
+
+if(!is.element("ggbiplot", installed.packages()[, 1]))
+      devtools::install_github("richardjtelford/ggbiplot", ref = "experimental")
+library(ggbiplot)
+
+
+```
+
+## Funciones
+
+```{r results='hide', message=F, warning=F}
+
+ggplotHistogramaDensidad <- function (strCampo,ds) {
+  require(psych)
+  require(ggplot2)  
+  
+  # Estudio mas detallado con curtosis y sesgo
+  strDescribe = paste("d <- psych::describe(ds$",strCampo,")",sep = "")
+  eval(parse(text = paste(strDescribe)))
+  
+  title <- strCampo
+  subtitle <- paste("Kurtosis:", signif(d$kurtosis,3)
+                     ," / Skew:", signif(d$skew,3))
+
+  p <- ggplot(ds, aes(x=get(strCampo))) +
+    geom_histogram(aes(y=..density..), colour="black", fill="white") +
+    geom_vline(aes(xintercept=mean(get(strCampo))),
+            color="blue", linetype="dashed", size=1) +
+    geom_density(alpha=.2, fill="#FF6666") +
+    #scale_x_continuous(breaks = 100000) +
+    labs(title=title, subtitle=subtitle, x = strCampo) + 
+    theme(plot.subtitle = element_text(size=10)) +
+    scale_x_continuous(labels = scales::comma)
+   
+  return(p)
+}
+
+```
+
+## Cargamos datos
+
+Partimos del dataset generado en la etapa anterior fichero F01_dsDataAll (datos limpios)
+
+Se ha realizado:
+*Verificación de datos y campos
+*Tratamiento de valores perdidos
+*Tratamiento de outliers
+
+```{r results='hide', message=F, warning=F}
+
+load('./F01_Datos/F01_dsDataAll.RData')
+
+# Definición de campos
+dsCampos <- read.csv("./input/campos.csv",sep=";",stringsAsFactors = FALSE)
+
+dsCampos <- dsCampos %>%
+  mutate_if(is.factor, as.character)
+
+# Dejamos el Tipo y el segmento como factor
+dsCampos$Tipo <- as.factor(dsCampos$Tipo)
+dsCampos$Segmento <- as.factor(dsCampos$Segmento)
+
+```
+
+
+# Ingeniería de características
+
+## Normalización
+
+En el análisis inicial se detectó que la mayoría de las variables continuas están sesgadas por lo que he decido aplicar la función log a todas ellas. Para ello se crea una función que convierte una variable del dataset, pasada como parámetro aplicándole la función log, esta función se llama mediante apply sobre todos los campos continuos.
+
+```{r results='hide', message=F, warning=F}
+# Selecciono variable continuas
+dsCamposContinua <- dsCampos %>% 
+  filter(Tipo=="Continua")  %>% 
+  select(Campo) 
+
+# creo una función para aplicar la función log sobre variables del dataset
+funcMutateLog <- function(var){
+  dsDataAll[,var] <- log(dsDataAll[,var])
+  assign('dsDataAll',dsDataAll,envir=.GlobalEnv) # Pendiente buscar solución mas elegante
+}
+
+apply(dsCamposContinua, MARGIN=1, funcMutateLog)
+```
+
+
+Presento resultados de la normalización
+```{r message=F, warning=F}
+gs <- apply(dsCamposContinua, MARGIN=1, ggplotHistogramaDensidad, ds=dsDataAll)
+marrangeGrob(grobs=gs, nrow=2, ncol=2)
+
+dsDataAll[mapply(is.infinite, dsDataAll)] <- 0
+
+rm(gs)
+rm(funcMutateLog)
+```
+
+*Salvar progreso*
+```{r}
+#save(dsDataAll, file = './F02_Datos/F02_01_dsDataAll.RData')
+# load('./F02_Datos/F02_01_dsDataAll.RData')
+```
+
+
+## Tratamiento de variables nominales - dummy
+
+Todas las variables nominales se convertirán a numéricas binarias, para ello cada variable generara nuevas variables una por cada valor existente en el conjunto de datos, indicando como valor 0 o 1, ausencia o presencia del valor.
+
+Existen multitud de formas en r de realizar esta transformación, yo he seleccionado usar dummy_cols del paquete fastDummies.
+
+```{r results='hide', message=F, warning=F}
+
+# Obtengo campos originales una vez trasformados
+dsCamposActuales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("Campo")
+
+CamposFactor <- filter(dsCamposActuales, Tipo == "factor" & Campo != "indTrain") %>% select(Campo)
+
+dsDummy <- dsDataAll %>% select(c("Id",c(CamposFactor$Campo)))
+dsDummy <- fastDummies::dummy_cols(dsDummy)
+dsDummy <- select(dsDummy,-c(CamposFactor$Campo))
+
+dsDataAll <- select(dsDataAll,-c(CamposFactor$Campo))
+
+dsDataAll <- dsDataAll %>% 
+    inner_join(dsDummy, by="Id")  
+
+rm(CamposFactor)
+rm(dsDummy)
+
+```
+
+*Salvar progreso*
+```{r}
+#save(dsDataAll, file = './F02_Datos/F02_01_dsDataAll.RData')
+# load('./F02_Datos/F02_01_dsDataAll.RData')
+```
+
+## Eliminación de variables con varianza próxima a cero 
+
+Si una variable tiene casi todas las observaciones con un mismo valor, su varianza será próxima a cero. Estas variables pueden añadir mas ruido que información, también dan problemas cuando se seleccionan los conjuntos de entrenamiento ya que si en la variable solo queda un valor puede producir que el entrenamiento sea erróneo.
+
+He utilizado la función nearZeroVar() del paquete caret para seleccionar estas variables y se han eliminado del dataset general.
+
+La eliminación de estas variables se debería realizar antes de la normalización, ya que después ya no tendrán la varianza cero, pero en este caso como solo se han normalizado las variables continuas, se ha decidido hacer posteriormente y se ha verificado que el resultado no empeoraba en la siguiente fase.
+
+```{r results='hide', message=F, warning=F}
+
+dsVarianzaCero <- dsDataAll %>% 
+  nearZeroVar(saveMetrics = TRUE) %>%
+  rownames_to_column(var = "Campo") %>%
+  filter(zeroVar==TRUE | nzv==TRUE) 
+
+dsDataAll <- dsDataAll %>% 
+    select(-c(dsVarianzaCero$Campo))
+
+rm(dsVarianzaCero)
+
+```
+
+*Salvar progreso*
+```{r}
+#save(dsDataAll, file = './F02_Datos/F02_01_dsDataAll.RData')
+# load('./F02_Datos/F02_01_dsDataAll.RData')
+```
+
+
+Elimino objetos que no se van a usar
+```{r results='hide', message=F, warning=F}
+rm(dsCampos)
+rm(dsCamposContinua)
+rm(dsCamposActuales)
+rm(dsCamposOriginales)
+```
+
+
+# Análisis de Componentes Principales
+
+Redución de la dimensionalidad utilizando el Análisis de Componentes Principales.
+
+El objetivo del PCA es buscar una representación alternativa y reducida de las tuplas originales formadas por n atributos. Se buscan los k vectores ortogonales (k < n) que mejor representan los n atributos originales. 
+
+Como el PCA no es invariante de escala, es recomendable estandarizar las variables antes de aplicarlo.
+
+En el cálcuo de componentes principales se escluye la variable respuesta.
+
+```{r results='hide', message=F, warning=F}
+# Selecciono las variables que forman el problema, 
+# eliminando la variable objetivo SalePrice, el Id y el indTrain
+dsDataAllPCA <- dsDataAll[,-c(1:3)]
+
+```
+
+## Cálculo de componentes principales.  
+Utilizo todos los datos disponibles ya que no esta relacionado con la variable objetivo
+
+```{r results='hide', message=F, warning=F}
+pca <- prcomp(dsDataAllPCA, center = TRUE, scale = TRUE)
+```
+
+
+Realizamos estudio y seleccionamos componentes principales
+```{r message=F, warning=F}
+#ggbiplot(pca)
+
+#summary(pca)
+
+# Se guarda la proporción de varianza explicada y acumulada de los componentes
+summaryPCA <- as.data.frame(summary(pca)$importance) %>% 
+    rownames_to_column("Estadistico") %>% 
+    gather(PC, Valor, PC1:PC92) %>% 
+    mutate(PC = as.integer(gsub("PC","",PC)))
+
+filter(summaryPCA, Estadistico == 'Cumulative Proportion') # & Valor < 0.99)
+
+g <- filter(summaryPCA, Estadistico == 'Cumulative Proportion')
+
+ggplot(data = g, aes(x = PC, y = Valor)) +
+  geom_line() +
+  geom_point() +
+  geom_point(data = filter(g,Valor>0.99),
+             color = "red") +
+  geom_point(data = filter(g,Valor<0.99 & Valor>0.95),
+             color = "green") +  
+  theme_bw()
+```
+
+Seleccionamos los componentes cuyo valor esplica el 95 % de la varianza
+```{r message=F, warning=F}
+# Seleccionamos los componentes cuyo valor esplica el 95 % de la varianza
+filter(summaryPCA, Estadistico == 'Cumulative Proportion', Valor < 0.95)
+
+## 55 Cumulative Proportion PC55 0.99064
+filter(summaryPCA, Estadistico == 'Cumulative Proportion', PC == 55)
+
+```
+ 
+Guardamos el dataset con los componentes principales
+```{r message=F, warning=F}
+# Aplicamos al conjunto para obtener las nuevas variables
+dsPCA <- as.data.frame(predict(pca, newdata = dsDataAllPCA))
+
+dsPCA <- dsPCA[,1:55]
+
+#Guardamos en el dataset dsDataAll los resultados
+dsDataAll <- cbind(dsDataAll[,1:3], dsPCA)
+
+save(dsDataAll, file = './F02_Datos/F02_02_dsDataAll_PCA.RData')
+
+```
+

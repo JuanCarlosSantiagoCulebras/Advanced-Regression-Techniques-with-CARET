@@ -1,0 +1,5 @@
+"0",""
+"0","# Verificamos que estan todos los campos (salen las variables ya eliminadas)"
+"0","dsCampos %>%"
+"0","  anti_join(dsCamposOriginales,  by = c(""Campo""))  %>%"
+"0","  select(Campo)"

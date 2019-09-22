@@ -1,0 +1,5 @@
+"0","dsDataAll <- dsDataAll %>%"
+"0","  mutate_if(is.factor, as.character)"
+"0",""
+"0","# Dejamos el indicador de entrenamiento como factor"
+"0","dsDataAll$indTrain <- as.factor(dsDataAll$indTrain)"
