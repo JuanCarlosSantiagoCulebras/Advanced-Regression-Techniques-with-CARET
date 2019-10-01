@@ -1,7 +1,0 @@
-"0",""
-"0","## Parece que existen un par de valores extraños "
-"0","## Uno en el conjunto de entrenamiento, con un porche muy grande y un precio bajo"
-"0","## Otro en el conjunto de test, con una superficie muy grande"
-"0",""
-"0","## Asigno mediana segun el area  "
-"0","select(dsDataAll,Id,OpenPorchSF,GrLivArea) %>% filter(OpenPorchSF>600|(OpenPorchSF>500&GrLivArea<1000))"

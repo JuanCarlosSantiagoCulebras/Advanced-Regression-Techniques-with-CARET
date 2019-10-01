@@ -1,6 +1,0 @@
-"0",""
-"0",""
-"0","metricas %>%"
-"0","  group_by(OrigenF2) %>% "
-"0","  summarise(media = mean(Test)) %>%"
-"0","  arrange(media)"

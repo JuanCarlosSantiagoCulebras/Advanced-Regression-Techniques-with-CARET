@@ -1,5 +1,0 @@
-"0",""
-"0","# Leer datos"
-"0","dsTrain <- read.csv(""./input/train.csv"")"
-"0","dsTest <- read.csv(""./input/test.csv"")"
-"0",""

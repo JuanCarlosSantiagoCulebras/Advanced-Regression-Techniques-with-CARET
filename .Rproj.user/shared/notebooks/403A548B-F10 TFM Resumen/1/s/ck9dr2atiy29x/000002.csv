@@ -1,2 +1,0 @@
-"0","dsDataAll <- dsDataAll %>% "
-"0","  mutate(YearRemodAdd = ifelse(YearBuilt<1950 & YearRemodAdd==1950,YearBuilt,YearRemodAdd)) "

@@ -115,6 +115,13 @@ fnEstudioModelo <- function ( modelo , estudioParam = TRUE){
 }
 
 
+# helper function for the plots
+tuneplot <- function(x, probs = .90) {
+  ggplot(x) +
+    coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+    theme_bw()
+}
+
 ```
 
 ## Cargamos datos
@@ -179,10 +186,16 @@ Modelo Support Vector Machines with Radial Basis Function Kernel como mejor mode
 Cargamos los datos del modelo seleccionado, de los predictores y el conjunto original
 ```{r}
 
-dir <- './F04_Modelos/F02_03_dsDataAll_Recipe/F03_15_dsDataSelVar_Completo/'
+#dir <- './F04_Modelos/F02_03_dsDataAll_Recipe/F03_15_dsDataSelVar_Completo/'
+#dir <- './F04_Modelos/F02_03_dsDataAll_Recipe/F03_14_dsDataSelVar_mezcla_31/'
+dir <- './F04_Modelos/F02_03_dsDataAll_Recipe/F03_12_dsDataSelVar_rfe_MenorRMSE_top55/'
+
 load(paste(dir,'modelo_svmRadial.RData',sep=''))
 
-load('./F03_SelPredictores/F02_03_dsDataAll_Recipe/F03_15_dsDataSelVar_Completo.RData')
+#load('./F03_SelPredictores/F02_03_dsDataAll_Recipe/F03_15_dsDataSelVar_Completo.RData')
+#load('./F03_SelPredictores/F02_03_dsDataAll_Recipe/F03_14_dsDataSelVar_mezcla_31.RData')
+load('./F03_SelPredictores/F02_03_dsDataAll_Recipe/F03_12_dsDataSelVar_rfe_MenorRMSE_top55.RData')
+
 load('./F01_Datos/F01_dsDataAll.RData')
 
 modeloSel <- modelo_svmRadial
@@ -273,6 +286,22 @@ dsSubmission %>%
 # Model Support Vector Machines with Radial Basis Function Kernel set of predictors generated with Recipe
 # Score 0.12401 Posición 1454 / 4548
 
+
+# dsSubmission %>%
+#   write_csv(path = './output/submission 03.csv')
+
+# Entrega 3
+# Model Support Vector Machines with Radial Basis Function Kernel set of predictors generated with Recipe (Merge 31)
+# Score 0.12508 
+
+
+# dsSubmission %>%
+#   write_csv(path = './output/submission 04.csv')
+
+# Entrega 4
+# Model Support Vector Machines with Radial Basis Function Kernel set of predictors generated with Recipe (rfe top 55)
+# Score 0.12485
+
 ```
 
 # Mejora
@@ -300,11 +329,10 @@ fitControl <- trainControl(method = "repeatedcv",
 # hiperparametros <- expand.grid(sigma = c(0.001)
 #                                ,C = (1:20))
 
-# hiperparametros <- expand.grid(sigma = c(seq(0.0004, 0.002, by=0.0002))
-#                                ,C = (5:15))
+hiperparametros <- expand.grid(sigma = c(seq(0.0006, 0.002, by=0.0002))
+                               ,C = (10:25))
 
-hiperparametros <- data.frame(sigma=0.001, C=14)
-
+# hiperparametros <- data.frame(sigma=0.001, C=14)
 
 t <- proc.time() # Inicia el cronómetro
 modelo_svmRadial <- train(SalePrice ~ .
@@ -316,20 +344,156 @@ modelo_svmRadial <- train(SalePrice ~ .
 proc.time()-t    # Detiene el cronómetro
 
 # Guardo resultado del calculo
-save(modelo_svmRadial, file ='./F04_Modelos/modelo_svmRadial.RData')
+# save(modelo_svmRadial, file ='./F04_Modelos/modelo_svmRadial.RData')
 
 
 # Presento estudio 
-fnEstudioModelo(modelo_svmRadial)
+# fnEstudioModelo(modelo_svmRadial)
+fnEstudioModelo(modelo_svmRadial,estudioParam=FALSE)
 
-plot(modelo_svmRadial)  
+# plot(modelo_svmRadial)  
 
 # RMSE 0.116 sigma = 0.001 and C = 10
 # RMSE 0.116 sigma = 0.001 and C = 13
 # RMSE 0.114 sigma = 0.001 and C = 14
-
+# RMSE 0.114 sigma = 0.001 and C = 15 ****
+# RMSE 0.114 sigma = 0.0004 and C = 15
+# RMSE 0.119 sigma = 0.001 and C = 19
 ```
+
 ```{r}
-fnEstudioModelo(modelo_svmRadial,estudioParam=FALSE)
+
+modeloSel = modelo_svmRadial
+
+prediccionPrecioVentaLog <- predict(modeloSel, newdata = dsTest, type = "raw")
+
+p <- exp(prediccionPrecioVentaLog)
+
+dsSubmission <- cbind(select(dsTest, Id), SalePrice=p)
+
+dsSubmission %>%
+  write_csv(path = './output/submission 02.csv')
+
+# Entrega 1 
+# Model Support Vector Machines with Radial Basis Function Kernel set of predictors generated with Recipe
+# Score 0.12406 Posición 1454 / 4548
+
 ```
 
+
+## XGBoost
+https://www.kaggle.com/benumeh/advanced-prediction-of-house-prices-top-10
+
+```{r}
+
+  # nrounds = seq(from = 200, to = nrounds, by = 50),
+  # max_depth = c(2, 3, 4, 5, 6),
+  # eta = c(0.025, 0.05, 0.1, 0.3),
+  # gamma = 0,
+  # colsample_bytree = 1,
+  # min_child_weight = 1,
+  # subsample = 1
+
+  # nrounds = seq(from = 50, to = nrounds, by = 50),
+  # eta = modelo_XGBoost$bestTune$eta,
+  # max_depth = ifelse(modelo_XGBoost$bestTune$max_depth == 2, 
+  #   c(2:4), # si es valor mínimo
+  #   modelo_XGBoost$bestTune$max_depth - 1:modelo_XGBoost$bestTune$max_depth + 1),
+  # gamma = 0,
+  # colsample_bytree = 1,
+  # min_child_weight = c(1, 2, 3),
+  # subsample = 1
+
+  # nrounds = seq(from = 250, to = nrounds, by = 50),
+  # eta = modelo_XGBoost$bestTune$eta,
+  # max_depth = modelo_XGBoost$bestTune$max_depth,
+  # gamma = 0,
+  # colsample_bytree = c(0.1, 0.15, 0.2, 0.25, 0.4),
+  # min_child_weight = modelo_XGBoost$bestTune$min_child_weight,
+  # subsample = 1
+
+  # nrounds = seq(from = 250, to = nrounds, by = 50),
+  # eta = modelo_XGBoost$bestTune$eta,
+  # max_depth = modelo_XGBoost$bestTune$max_depth,
+  # gamma = 0,
+  # colsample_bytree = c(0.1, 0.14, 0.16, 0.18, 0.20, 0.22, 0.24, 0.26, 0.4),
+  # min_child_weight = modelo_XGBoost$bestTune$min_child_weight,
+  # subsample = c(0.3, 0.4, 0.5, 0.6)
+
+  # nrounds = seq(from = 250, to = nrounds, by = 50),
+  # eta = modelo_XGBoost$bestTune$eta,
+  # max_depth = modelo_XGBoost$bestTune$max_depth,
+  # gamma = c(0, 0.05, 0.1, 0.5, 0.7, 0.9, 1.0),
+  # colsample_bytree = modelo_XGBoost$bestTune$colsample_bytree,
+  # min_child_weight = modelo_XGBoost$bestTune$min_child_weight,
+  # subsample = modelo_XGBoost$bestTune$subsample
+
+# Maximum Depth
+# hiperparametros <- expand.grid(
+#   nrounds = seq(from = 750, to = 2500, by = 50),
+#   eta = c(0.01, 0.015, 0.025, 0.05, 0.1),
+#   max_depth = modelo_XGBoost$bestTune$max_depth,
+#   gamma = modelo_XGBoost$bestTune$gamma,
+#   colsample_bytree = modelo_XGBoost$bestTune$colsample_bytree,
+#   min_child_weight = modelo_XGBoost$bestTune$min_child_weight,
+#   subsample = modelo_XGBoost$bestTune$subsample
+# )
+  
+# Maximum Depth
+hiperparametros <- expand.grid(
+  nrounds = seq(from = 750, to = 2000, by = 50),
+  eta = 0.05, #c(0.01, 0.05, 0.1),
+  max_depth = 2,
+  gamma = 0,
+  colsample_bytree =c(0.16, 0.18, 0.19, 0.20, 0.21, 0.22, 0.24),
+  min_child_weight = 3,
+  subsample =  0.3
+)
+
+t <- proc.time() # Inicia el cronómetro
+modelo_XGBoost <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "xgbTree"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+# Guardo resultado del calculo
+save(modelo_XGBoost, file ='./F04_Modelos/modelo_XGBoost.RData')
+
+#modelo_XGBoost
+
+# Presento estudio 
+fnEstudioModelo(modelo_XGBoost, estudioParam = FALSE)
+
+tuneplot(modelo_XGBoost)
+
+modelo_XGBoost$bestTune
+
+# RMSE 0,123
+# nrounds = 850, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 1, min_child_weight = 1 and subsample = 1.
+# RMSE 0,125
+# nrounds = 800, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 1, min_child_weight = 3 and subsample = 1.
+# RMSE 0,125
+# nrounds = 1000, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 0.1, min_child_weight = 3 and subsample = 1.
+# RMSE 0,124
+# nrounds = 1150, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 0.2, min_child_weight = 3 and subsample = 1
+
+# RMSE 0,119
+# nrounds = 1100, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 0.15, min_child_weight = 3 and subsample = 1.
+
+# RMSE 0,117  Test 0.1245
+# nrounds = 1150, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 0.15, min_child_weight = 3 and subsample = 0.5.
+
+# RMSE 0,121  Test 0.1225
+# nrounds = 850, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 0.26, min_child_weight = 3 and subsample = 0.4.
+
+# RMSE 0,121  Test 0.1221
+# nrounds = 1250, max_depth = 2, eta = 0.05, gamma = 0, colsample_bytree = 0.26, min_child_weight = 3 and subsample = 0.4.
+
+# RMSE 0,119  Test 0.126
+# nrounds = 1200, max_depth = 2, eta =  0.05, gamma = 0, colsample_bytree = 0.2, min_child_weight = 3 and subsample = 0.3.
+
+
+```

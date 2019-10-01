@@ -5,7 +5,7 @@ author: "Juan Carlos Santiago Culebras"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
-  #html_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -62,6 +62,10 @@ if(!is.element("recipes", installed.packages()[, 1]))
       install.packages("recipes", repos = 'http://cran.us.r-project.org')
 library(recipes)
 
+if(!is.element("readr", installed.packages()[, 1]))
+      install.packages("readr", repos = 'http://cran.us.r-project.org')
+library(readr)
+
 ```
 
 ## Cargamos datos
@@ -99,7 +103,7 @@ rm(dsTest)
 
 # Fase 01 
 
-Antes de implemetar esta fase se ha realizado un estudio completo del dataset, que no incluyo por la extensión que implica. En ella se han realizado las siguientes acciones:
+Antes de implementar esta fase se ha realizado un estudio completo del dataset, que no incluyo por la extensión que implica. En ella se han realizado las siguientes acciones:
 * Análisis descriptivo
 * Verificación de contenido de campos nominales
 * Búsqueda de valores faltantes
@@ -300,7 +304,7 @@ dsDataAll$PavedDrive <- as.numeric(c(dsDataAll$PavedDrive))
 
 ### Variables Nominales paso a factor
 
-Todas las variables que quedan con caracter son nominales 
+Todas las variables que quedan con carácter son nominales 
 ```{r}
 dsDataAll <- dsDataAll %>% 
     mutate_if(is.character, as.factor)
@@ -308,7 +312,7 @@ dsDataAll <- dsDataAll %>%
 dsDataAll$MSSubClass <- as.factor(dsDataAll$MSSubClass)
 ```
 
-Variables con solo dos valores se pasan a númericas
+Variables con solo dos valores se pasan a numéricas
 
 $ Street       : Factor w/ 2 levels "Grvl","Pave"
 $ CentralAir   : Factor w/ 2 levels "N","Y"
@@ -353,7 +357,7 @@ rm(eliminar)
 ```
 
 **LotArea**	 tamaño del lote en pies cuadrados
-Existen 4 valores claramente fuera de rango, creo variable nueva actualizandolos con los valores con la mediana según el tipo de construcción
+Existen 4 valores claramente fuera de rango, creo variable nueva actualizándolos con los valores con la mediana según el tipo de construcción
 
 ```{r}
 # Calculo mediana por tipo de construcción
@@ -430,8 +434,8 @@ rm(a)
 ```
 
 **WoodDeckSF** área de cubierta de madera en pies cuadrados
-Parece que existe un valor extraño, sin embargo existe la posibilidad de que sea una casa completamente de madera,
-pero como el valor esta en el conjunto de test no se puede usar para entrenar y el modelo resultante no podrá calcular precios para casas solo de madera, por lo que actualizo el valor a la mediana según la superficie
+Parece que existe un valor extraño, sin embargo, existe la posibilidad de que sea una casa completamente de madera,
+pero como el valor está en el conjunto de test no se puede usar para entrenar y el modelo resultante no podrá calcular precios para casas solo de madera, por lo que actualizo el valor a la mediana según la superficie
 
 ```{r}
 a <- dsDataAll %>% 
@@ -508,7 +512,7 @@ rm(a)
 
 **YearRemodAdd** Año de remodelación
 Parece que a las casas que se construyeron antes de 1950 se les puso una fecha de remodelación 1950
-Modifico la fecha de remodelación para casas anteriores a 1950 asignandoles la fecha de construcción
+Modifico la fecha de remodelación para casas anteriores a 1950 asignándoles la fecha de construcción
 
 ```{r}
 dsDataAll <- dsDataAll %>% 
@@ -521,20 +525,13 @@ Los datos de esta variable parecen incorrectos (Elimino)
 dsDataAll <- select(dsDataAll, -GarageYrBlt)
 ```
 
-*Salvar progreso*
-```{r}
-save(dsDataAll, file = './F01_Datos/F01_dsDataAll.RData')
-#load('./F01_Datos/F01_dsDataAll.RData')
-```
-
-
 
 # Fase 02 Ingeniería de características con recipe
 
 En esta fase se intentará modificar el conjunto de características para aumentar su eficacia predictiva, para lo cual se utilizará el paquete “recipes”.
 
 
-Preparamos datos para realizar la ingenieria con recipe
+Preparamos datos para realizar la ingeniería con recipe
 
 La variable objetivo SalePrice no se modificará con caret, se normalizará directamente con la función log ya que la competición se basa en la medida RMSE del logaritmo de SalePrice.
 
@@ -545,7 +542,7 @@ dsDataAllRecipe <- dsDataAll %>%
 
 ## Separamos los datos 
 
-Optenemos 3 dataset (dsTest no se utilizara en esta fase)
+Optenemos 3 dataset (dsTest no se utilizará en esta fase)
 
 dsTrain - Que a su vez se divide en
   dsTrain.training
@@ -583,7 +580,7 @@ objRecipe <- recipe(formula = SalePrice ~ ., data =  dsTrain.training)
 
 *Estandarización y escalado, sobre las variables numéricas: En el análisis inicial se detectó que la mayoría de las variables continuas están sesgadas.
 
-*Binarización de variables nominales (dummy):Todas las variables nominales se convertirán a numéricas binarias, para ello cada variable generara nuevas variables una por cada valor existente en el conjunto de datos, indicando como valor 0 o 1, ausencia o presencia del valor.
+*Binarización de variables nominales (dummy): Todas las variables nominales se convertirán a numéricas binarias, para ello cada variable generara nuevas variables una por cada valor existente en el conjunto de datos, indicando como valor 0 o 1, ausencia o presencia del valor.
 
 *Se repite la eliminación de variables con varianza cero, ya que muchas de las variables dummy tendrán este problema. Una varianza cero puede generar problemas con algunos modelos.
 
@@ -610,7 +607,7 @@ objRecipe
 
 ## Entrenamiento
 
-Se realiza un entrenamiento del objeto recipe, donde se aprenden los parámetros necesarios para realizar las transformaciones y se muestra el reusltado del entrenamiento
+Se realiza un entrenamiento del objeto recipe, donde se aprenden los parámetros necesarios para realizar las transformaciones y se muestra el resultado del entrenamiento
 
 ```{r}
 trained_recipe <- prep(objRecipe, training = dsTrain.training)
@@ -634,11 +631,15 @@ dsDataAll <- cbind(dsDataAllRecipe[,1:3], dsDataAllRecipe.prep[,-1])
 El objetivo es utilizar una de las muchas formas de reducir el volumen de características que ofrece caret, de tal forma que únicamente los predictores que están relacionados con la variable respuestas se incluyan en el modelo.
 
 Los métodos de selección de predictores se pueden clasificar como:
-*	Métodos wrapper: evalúan múltiples modelos utilizando procedimientos que agregan y/o eliminan predictores para encontrar la combinación óptima que maximice el rendimiento del modelo, son algoritmos de búsqueda donde los predictores son las entradas y el modelo a optimizar es la salida.
-** Eliminación de características recursivas
-** Algoritmos genéticos
-** Simulated annealing
-*	Métodos de filtro: Analizan la relación que tiene cada predictor con la variable respuesta, evaluando la relevancia de los predictores fuera de los modelos y seleccionando los que pasan algún criterio.
+
+*	Métodos wrapper: 
+    Evalúan múltiples modelos utilizando procedimientos que agregan y/o eliminan predictores para encontrar la combinación óptima que maximice el rendimiento del modelo, son algoritmos de búsqueda donde los predictores son las entradas y el modelo a optimizar es la salida.
+    * Eliminación de características recursivas    
+    * Algoritmos genéticos    
+    * Simulated annealing
+    
+*	Métodos de filtro: 
+    Analizan la relación que tiene cada predictor con la variable respuesta, evaluando la relevancia de los predictores fuera de los modelos y seleccionando los que pasan algún criterio.
 
 Además, cada uno de estos métodos puede utilizar distintos algoritmos (regresión lineal, naive bayes, random forest) y métodos de entrenamiento (Validación cruzada o bootstrapping).
 
@@ -679,13 +680,13 @@ dsTest <- dsDataAll %>%
 ```
 
 
-## Eliminación Recursiva con Randon Forest y validación cruzada
+## Eliminación Recursiva con Random Forest y validación cruzada
 
 EJECUCIÓN
-```{r}
+```{r warning=FALSE}
 
 #Defino conjuntos de número de predictores a probar.
-subsets <- c(5, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 50, 60)
+subsets <- c(5, 10, 15, 16, 17, 18, 19, 20, 25, 30, 40, 50, 60, 70)
 
 control <- rfeControl(functions = rfFuncs
                       ,method = "repeatedcv" # Validación cruzada
@@ -711,7 +712,7 @@ rf_rfe
 
 Estudio de resultados 
 
-Presentamos graficamente la evolución de RMSE según el número de predictores seleccionados.
+Presentamos gráficamente la evolución de RMSE según el número de predictores seleccionados.
 
 Se marcan los números de predictores con mejor RMSE Absoluto y los que mejor Rendimiento ofrecen según la función pickSizeTolerance.
 
@@ -755,7 +756,8 @@ ggplot(data = dsResults, aes(x = Variables, y = RMSE)) +
 
 ```
 
-Selección las variables indicadas como mejor rendimiento (18 Variables)
+Selecciono las variables indicadas como mejor rendimiento, utilizando el principio de parsimonia que nos indica que el modelo más simple es posiblemente el mejor.
+
 ```{r}
 
 dsVarSel001 <- as.data.frame(rf_rfe$optVariables) %>%
@@ -764,7 +766,7 @@ dsVarSel001 <- as.data.frame(rf_rfe$optVariables) %>%
   mutate(Orden = as.numeric(Orden), Campo = as.character(Campo)) 
 
 # Selecciono los 25 primeros selectores.
-dsVarSel <- dsVarSel001 %>% top_n(-18, Orden)
+dsVarSel <- dsVarSel001 %>% top_n(0-mejorAbsoluto, Orden)
 
 # Guardo un data set con los valores seleccionados
 dsDataAllVarSel <- dsDataAll %>% 
@@ -772,7 +774,8 @@ dsDataAllVarSel <- dsDataAll %>%
 
 ```
 
-Eliminamos objetos que no se seguiran usando
+
+Eliminamos objetos que no se seguirán usando
 ```{r}
 rm(list= ls()[!(ls() == 'dsDataAllVarSel')])
 ```
@@ -782,21 +785,20 @@ rm(list= ls()[!(ls() == 'dsDataAllVarSel')])
 
 En esta fase aplicaremos distintos algoritmos de machine learning para generar modelos de regresión, que sean capaces de predecir la variable objetivo (SalePrice). 
 
-
 Creamos una función de apoyo para presentar los resultados obtenidos al entrenar un modelo.
 
 Presenta: 
+
 * Modelo final: Resumen del modelo seleccionado en el entrenamiento y cuáles son los mejores parámetros.
 
 * Estudio del RMSE obtenido en la validación
-Para ello se presentan dos gráficas:
-** Gráfica de densidad de RMSE de los distintos cálculos realizados en el entrenamiento.
-** Boxplot de RMSE de los distintos cálculos
-El resumen del RMSE obtenido para el entrenamiento
-*	Summary de resample$RMSE
-Y por último el error de test
-*	Para ello la función llama a predict sobre el modelo con el conjunto dsTrain.CV ver Gestión de los dataset - Pruebas de Test)
-
+    
+    * Para ello se presentan dos gráficas:
+        * Gráfica de densidad de RMSE de los distintos cálculos realizados en el entrenamiento.
+        * Boxplot de RMSE de los distintos cálculos
+    
+    *	El resumen del RMSE obtenido para el entrenamiento: Summary de resample$RMSE
+    * Y por último el error de test: para ello la función llama a predict sobre el modelo con el conjunto dsTrain.CV
 
 ```{r}
 
@@ -804,7 +806,6 @@ fnEstudioModelo <- function ( modelo , estudioParam = TRUE){
   
   # modelo
   # modelo$finalModel
-  
   
   p1 <- ggplot(data = modelo$resample, aes(x = RMSE)) +
         geom_density(alpha = 0.5, fill = "gray50") +
@@ -854,11 +855,17 @@ fnEstudioModelo <- function ( modelo , estudioParam = TRUE){
   
 }
 
+tuneplot <- function(x, probs = .90) {
+  ggplot(x) +
+    coord_cartesian(ylim = c(quantile(x$results$RMSE, probs = probs), min(x$results$RMSE))) +
+    theme_bw()
+}
+
 ```
 
 ## Separamos los datos 
 
-Optenemos 4 dataset
+Obtenemos 4 dataset
 
 dsTrain - Que a su vez se divide en
   dsTrain.training
@@ -912,7 +919,8 @@ fitControl <- trainControl(method = "repeatedcv",
 
 ## Modelos
 
-He seleccionado los 4 modelos que mejor resultado han dado en el TFM.
+He seleccionado 5 de los modelos que he probado en el TFM.
+
 
 ### Support Vector Machines with Radial Basis Function Kernel
 
@@ -922,10 +930,19 @@ Las máquinas de soporte utilizan una función denominada Kernel para la búsque
 
 Radial Basis permite seleccionar círculos (o hiperesferas)
 
-```{r}
+```{r, warning=FALSE}
 
-hiperparametros <- expand.grid(sigma = c(0.0005, 0.001, 0.005)
-                               ,C = c(1 , 20, 50, 100, 150, 200))
+# hiperparametros <- expand.grid(sigma = c(0.0005, 0.001, 0.005)
+#                                ,C = c(1 , 20, 50, 100, 150, 200))
+# RMSE 0.128 TEST 0.11829
+
+# hiperparametros <- expand.grid(sigma = c(seq(0.0006, 0.002, by=0.0002))
+#                                ,C = (10:25))
+# RMSE 0.126 TEST 0.1184 -- sigma = 0.0018 and C = 24.
+
+hiperparametros <- expand.grid(sigma = c(seq(0.0014, 0.0024, by=0.0002))
+                               ,C = (15:40))
+# RMSE 0.125 TEST 0.1184 -- sigma = 0.0014 and C = 34.
 
 t <- proc.time() # Inicia el cronómetro
 modelo_svmRadial <- train(SalePrice ~ .
@@ -936,20 +953,22 @@ modelo_svmRadial <- train(SalePrice ~ .
                           , trControl = fitControl)
 proc.time()-t    # Detiene el cronómetro
 
-modelo_svmRadial
+modelo_svmRadial$bestTune
 
 # Presento estudio 
 fnEstudioModelo(modelo_svmRadial)
 
 ```
 
-## Elasticnet
+
+### Elasticnet
 
 Es una combinación de LASSO y Ridge regression, donde  predictores altamente correlacionados presentan coeficientes estimados similares. 
 
-```{r}
+```{r warning=FALSE}
 
-hiperparametros <- expand.grid(alpha=seq(0,1,by=.5),lambda=seq(0,0.2,by=.1))
+hiperparametros <- expand.grid(alpha=seq(0,2,by=.5),lambda=seq(0,0.1,by=.02))
+# RMSE 0.130 TEST 0.1237 -- alpha = 1 and lambda = 0
 
 t <- proc.time() # Inicia el cronómetro
 modelo_glmnet <- train(SalePrice ~ .
@@ -960,23 +979,24 @@ modelo_glmnet <- train(SalePrice ~ .
                           , trControl = fitControl)
 proc.time()-t    # Detiene el cronómetro
 
-modelo_glmnet
+modelo_glmnet$bestTune
 
 # Presento estudio 
 fnEstudioModelo(modelo_glmnet)
 
 ```
 
-## LASSO
+
+### LASSO
 
 0perador de mínima contracción y selección absoluta. (least absolute shrinkage and selection operator) se utiliza para modelos de sistemas no lineales. 
 
 Realiza selección de variables y regularización para mejorar la exactitud e interpretabilidad del modelo. Establece algunos coeficientes a cero lo que permite eliminar variables. 
 
 
-```{r}
+```{r warning=FALSE}
 
-hiperparametros <- expand.grid(fraction=c(1,0.1,0.01,0.001))
+hiperparametros <- expand.grid(fraction=c(0.001,0.01,0.1,1))
 
 t <- proc.time() # Inicia el cronómetro
 modelo_lasso <- train(SalePrice ~ .
@@ -988,18 +1008,21 @@ modelo_lasso <- train(SalePrice ~ .
                           , trControl = fitControl)
 proc.time()-t    # Detiene el cronómetro
 
-modelo_lasso
+modelo_lasso$bestTune
 
 # Presento estudio 
 fnEstudioModelo(modelo_lasso, estudioParam = FALSE)
 
+plot(modelo_lasso)
+
 ```
+
 
 ### Generalized Linear Model
 
 Es una generalización flexible de la regresión lineal, permite que el modelo lineal se relacione con la variable de respuesta a través de una función de enlace. Este modelo parece más apto para nuestro problema ya que permite que la variable respuesta tenga una distribución arbitraria, nuestra variable es solo positiva y varia gran escala, es una distribución sesgada.
 
-```{r}
+```{r warning=FALSE}
 
 hiperparametros <- data.frame(parameter = "none")
 
@@ -1012,18 +1035,124 @@ modelo_glm <- train(SalePrice ~ .
                           , trControl = fitControl)
 proc.time()-t    # Detiene el cronómetro
 
-modelo_glm
+modelo_glm$bestTune
 
 # Presento estudio 
 fnEstudioModelo(modelo_glm, estudioParam = FALSE)
 
 ```
 
+
+### XGBoost
+
+XGBoost ha sido uno de los modelos más utilizados, esto es así porque se adapta fácilmente ya que es muy flexible, se puede usar tanto en regresión como en clasificación. Utiliza una combinación de modelos más simples (árboles de decisión) y potencia los resultados.
+
+La gran desventaja de este modelo es el ajuste de su gran cantidad de parámetros. 
+
+Para realizar el ajuste hemos usado un proceso iterativo, basado en el Notebooks de Kaggle: 
+
+https://www.kaggle.com/benumeh/advanced-prediction-of-house-prices-top-10
+
+```{r warning=FALSE}
+
+# ITER 1
+# nrounds = seq(from = 200, to = nrounds, by = 50),
+# max_depth = c(2, 3, 4, 5, 6),
+# eta = c(0.025, 0.05, 0.1, 0.3),
+# gamma = 0,
+# colsample_bytree = 1,
+# min_child_weight = 1,
+# subsample = 1
+
+# nrounds = 850, max_depth = 2, eta = 0.025, gamma = 0, colsample_bytree =  1, min_child_weight = 1 and subsample = 1.
+# RMSE 0.134 Test 0.1288
+
+
+# ITER 2
+# nrounds = seq(from = 200, to = 1000, by = 50),
+# max_depth = c(2, 3, 4),
+# eta = 0.025,
+# gamma = 0,
+# colsample_bytree = 1,
+# min_child_weight = c(1, 2, 3),
+# subsample = 1
+
+# RMSE 0.128 Test 0.1288
+# model were nrounds = 900, max_depth = 2, eta = 0.025, gamma = 0, colsample_bytree = 1, min_child_weight = 3 and subsample = 1
+
+# ITER 3
+# nrounds = seq(from = 500, to = 2500, by = 50),
+# max_depth = 2,
+# eta = 0.025,
+# gamma = 0,
+# colsample_bytree = 1,
+# min_child_weight = c(5, 6, 7, 8, 9),
+# subsample = 1
+
+# RMSE 0.128 Test 0.1292
+# nrounds = 800, max_depth = 2, eta = 0.025, gamma = 0, colsample_bytree = 1, min_child_weight = 8 and subsample = 1.
+
+# ITER 4
+# nrounds = seq(from = 500, to = 1500, by = 50),
+# max_depth = 2,
+# eta = 0.025,
+# gamma = 0,
+# colsample_bytree = c(0.3, 0.4, 0.5, 0.6),
+# min_child_weight = 8,
+# subsample = c(0.4, 0.5, 0.6)
+
+
+# ITER 5
+# nrounds = seq(from = 500, to = 2000, by = 50),
+# max_depth = 2,
+# eta = 0.025,
+# gamma = c(0, 0.05, 0.1, 0.2),
+# colsample_bytree = 0.4,
+# min_child_weight = 8,
+# subsample = 0.5
+
+# RMSE 0.127 Test 0.1277
+# nrounds = 1350, max_depth = 2, eta = 0.025, gamma = 0, colsample_bytree = 0.4, min_child_weight = 8 and subsample = 0.5.
+
+
+# RMSE 0.125 Test 0.128
+# nrounds = 1950, max_depth = 2, eta = 0.015, gamma = 0, colsample_bytree = 0.4, min_child_weight = 8 and subsample = 0.5.
+
+# Maximum Depth
+hiperparametros <- expand.grid(
+  nrounds = seq(from = 500, to = 2500, by = 50),
+  max_depth = 2,
+  eta =  0.015,
+  gamma = 0,
+  colsample_bytree = 0.4,
+  min_child_weight = 8,
+  subsample = 0.5
+)
+
+t <- proc.time() # Inicia el cronómetro
+modelo_XGBoost <- train(SalePrice ~ .
+                          , data = dsTrain.training
+                          , method = "xgbTree"
+                          , tuneGrid = hiperparametros
+                          , metric = "RMSE"
+                          , trControl = fitControl)
+proc.time()-t    # Detiene el cronómetro
+
+modelo_XGBoost$bestTune
+
+# Presento estudio 
+fnEstudioModelo(modelo_XGBoost, estudioParam = FALSE)
+
+tuneplot(modelo_XGBoost)
+
+```
+
+
 ## Comparación de modelos
 
-En este punto trataremos de identificar cual de los modelos es mejor para ello tendremos en cuenta las metricas de validación calculadas en el entrenamiento y el error de test.
+En este punto trataremos de identificar cuál de los modelos es mejor para ello tendremos en cuenta las métricas de validación calculadas en el entrenamiento y el error de test.
 
-Utilizare la función resamples() para extraer las metricas de los modelos entrenados.
+Utilizare la función resamples() para extraer las métricas de los modelos entrenados.
 
 ```{r}
 modelos <- list(
@@ -1031,6 +1160,7 @@ modelos <- list(
   ,GLMNET = modelo_glmnet
   ,GLM = modelo_glm
   ,LASSO = modelo_lasso
+  ,XGBoost = modelo_XGBoost
 )
 
 resultados_resamples <- resamples(modelos)
@@ -1062,11 +1192,76 @@ metricas <- metricas_tipo %>%
   spread(key = dataType, RMSE) %>%
   arrange(Test)
 
-metricas
+metricas 
 
 ```
 
 
+
+Comparativa gráfica
+
+```{r}
+
+dg <-metricas_resamples %>% 
+  filter(metrica == "RMSE") %>%
+  group_by(modelo) %>% 
+  mutate(media = mean(valor)) %>%
+  ungroup() 
+
+ggplot(dg, aes(x = reorder(modelo, media), y = valor, color = modelo)) +
+    geom_boxplot(alpha = 0.6, outlier.shape = NA) +
+    geom_jitter(width = 0.1, alpha = 0.6) +
+    scale_y_continuous(limits = c(0.05, 0.15)) +
+    labs(title = "Validación: RMSE medio repeated-CV",
+         subtitle = "Modelos ordenados por media") +
+    coord_flip() +
+    theme(legend.position = "none")
+
+ggplot(data = metricas_tipo,
+       aes(x = object, y = RMSE,
+           color = dataType, label = round(RMSE, 4))) +
+  geom_point(size = 15) +
+  scale_color_manual(values = c("orangered2", "gray50")) +
+  geom_text(color = "white", size = 3) +
+  scale_y_continuous(limits = c(0.05, 0.15)) +
+  coord_flip() +
+  labs(title = "RMSE de entrenamiento y test", 
+       x = "modelo") +
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+```
+
+
+# Fase 5 - Selección del modelo definitivo 
+
+Seleccionamos el modelo con el RMSE más bajo
+```{r}
+modeloSel <- modelo_svmRadial
+```
+
+Entrega
+
+* Generamos las predicciones para el conjunto de Test original
+* Aplicamos la función exp a la predicción para cálcular la predicción el dolares
+* Generamos el fichero con las predicciones
+
+```{r}
+
+prediccionPrecioVentaLog <- predict(modeloSel, newdata = dsTest, type = "raw")
+
+p <- exp(prediccionPrecioVentaLog)
+
+dsSubmission <- cbind(select(dsTest, Id), SalePrice=p)
+
+dsSubmission %>%
+  write_csv(path = './output/submission.csv')
+
+# Entrega 1 
+# Model Support Vector Machines with Radial Basis Function Kernel set of predictors generated with Recipe
+# Score 0.12401 Posición 1454 / 4548
+
+```
 
 
                 

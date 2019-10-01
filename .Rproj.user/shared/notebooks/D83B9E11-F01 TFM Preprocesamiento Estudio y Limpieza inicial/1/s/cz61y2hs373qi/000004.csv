@@ -1,6 +1,0 @@
-"0","# NO IDENTIFICO OUTLIERS"
-"0","# Existen 2 valores que pueden ser atípicos, pero son posibles y estan en el conjunto de entrenamiento, los mantengo. "
-"0",""
-"0","rm(var)"
-"0","rm(a)"
-"0",""

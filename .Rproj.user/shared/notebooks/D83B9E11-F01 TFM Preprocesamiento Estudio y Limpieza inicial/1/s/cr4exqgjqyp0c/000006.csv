@@ -1,4 +1,0 @@
-"0",""
-"0","dsDataAll %>% "
-"0","  filter(YrSold<YearBuilt) %>%"
-"0","  select(Id,YrSold,YearBuilt,SaleType)"

@@ -1,8 +1,0 @@
-"0","# Selecciono variables continuas"
-"0","dsCamposContinua <- dsCampos %>% "
-"0","  filter(Tipo==""Continua"" & Campo!=""SalePrice"")  %>% "
-"0","  select(Campo) "
-"0",""
-"0","#Genero histograma con densidad para cada variable"
-"0","gs <- apply(dsCamposContinua, MARGIN=1, ggplotHistogramaDensidad, ds=dsDataAll)"
-"0","marrangeGrob(grobs=gs, nrow=2, ncol=2)"

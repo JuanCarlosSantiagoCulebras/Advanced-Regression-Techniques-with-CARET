@@ -1,7 +1,0 @@
-"0","dsResults <- rf_rfe$results"
-"0",""
-"0","# Métricas promedio de cada tamaño"
-"0","dsResults %>% "
-"0","  group_by(Variables) %>%"
-"0","  summarise(media_RMSE = mean(RMSE), media_Rsquared = mean(Rsquared)) %>%"
-"0","  arrange(media_RMSE)"

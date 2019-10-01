@@ -1,4 +1,0 @@
-"0",""
-"0","# Esta variable parece incorrecta (Elimino)"
-"0","dsDataAll <- select(dsDataAll, -GarageYrBlt)"
-"0",""

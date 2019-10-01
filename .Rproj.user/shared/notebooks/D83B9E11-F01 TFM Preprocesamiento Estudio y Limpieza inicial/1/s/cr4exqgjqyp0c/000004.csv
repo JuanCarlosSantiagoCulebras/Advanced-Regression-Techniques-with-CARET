@@ -1,2 +1,0 @@
-"0",""
-"0","ggplot(dsDataAll, aes(x=YrSold, y=YearBuilt)) + geom_point(aes(color = indTrain))  "

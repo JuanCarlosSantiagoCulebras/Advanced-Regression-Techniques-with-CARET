@@ -1,4 +1,0 @@
-"0","dsCamposOriginales %>%"
-"0","  inner_join(dsCampos,  by = c(""Campo"")) %>%"
-"0","  select(Campo, Tipo.x, Tipo.y) %>%"
-"0","  filter(Tipo.y == ""Ordinal"" & Tipo.x != ""character"") "

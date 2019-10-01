@@ -1,6 +1,0 @@
-"0",""
-"0","dsDataAllRecipe.prep <- bake(trained_recipe, new_data = dsDataAllRecipe)"
-"0",""
-"0","#Guardamos en el dataset dsDataAll los resultados incluidos los campos Id e indTrain"
-"0","dsDataAll <- cbind(dsDataAllRecipe[,1:3], dsDataAllRecipe.prep[,-1])"
-"0",""

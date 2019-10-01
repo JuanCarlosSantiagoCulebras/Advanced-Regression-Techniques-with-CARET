@@ -54,6 +54,9 @@ library(caret)
 if(!is.element("recipes", installed.packages()[, 1]))
       install.packages("recipes", repos = 'http://cran.us.r-project.org')
 library(recipes)
+
+library(tinytex)
+
 ```
 
 ## Cargamos datos
@@ -162,10 +165,95 @@ dsDataAllRecipe.prep <- bake(trained_recipe, new_data = dsDataAllRecipe)
 #Guardamos en el dataset dsDataAll los resultados incluidos los campos Id e indTrain
 dsDataAll <- cbind(dsDataAllRecipe[,1:3], dsDataAllRecipe.prep[,-1])
 
-save(dsDataAll, file = './F02_Datos/F02_03_dsDataAll_Recipe.RData')
+#save(dsDataAll, file = './F02_Datos/F02_03_dsDataAll_Recipe.RData')
 # load('./F02_Datos/F02_03_dsDataAll_Recipe.RData')
 
 ```
 
+
+# Selección manual de variables
+
+En este punto voy a generar un conjunto de caracteristicas seleccionadas manualmente desde el conocimiento del problema y apoyado con el estudio de correlaciones realizado en la fase anterior.
+
+Para ello se han recorrido las categorias creadas en los campos y por cada una de ellas se han seleccionado las variables mas correlacionadas con el precio, aunque se han excluido algunas que tenía una clara relación con otra variable ya seleccionada, por ejemplo LotFrontage  elimino por estar muy relacionado con LotArea. Además se han añadido algunas variables que aunque no dan una gran correlación con la variable objetivo son consideradas importantes para el problema. 
+
+```{r}
+
+# Campos seleccionados
+varSel <- 
+  c('LotArea'          # Propiedad
+  ,'LotShape' 
+  ,'OverallQual'        # Edificio Calidad
+  ,'YearBuilt'          # Edificio Tiempo
+  ,'YearRemodAdd'
+  ,'ExterQual'          # Edificio Cubierta
+  ,'ExterCond'
+  ,'TotalBsmtSF'        # Edificio Sótano
+  ,'BsmtFinSF1'
+  ,'BsmtFinSF2'
+  ,'HeatingQC'          # Edificio Servicios
+  ,'CentralAir'
+  ,'GrLivArea'          # Edificio Superficie
+  ,'X1stFlrSF'
+  ,'FullBath'           # Edificio Baños
+  ,'BedroomAbvGr'       # Edificio Dormitorios
+  ,'KitchenAbvGr'       # Edificio Cocinas
+  ,'KitchenQual'
+  ,'Fireplaces'         # Edificio Chimenea
+  ,'GarageArea'         # Edificio Garage
+  ,'GarageQual'
+  ,'GarageType_Attchd'
+  ,'PavedDrive'         # Edificio Entrada
+  ,'OpenPorchSF'        # Edificio Porche
+  ,'EnclosedPorch'
+  ,'PoolArea'           # Edificio Piscina
+  ,'MiscVal'            # Otras características
+  ,'SaleType_New'       # Venta
+  ,'SaleCondition_Partial'
+  ,'MSZoning_C'         # Ubicación
+  ,'MSZoning_FV'
+  ,'MSZoning_RH'
+  ,'MSZoning_RL'
+  ,'MSZoning_RM'
+  ,'MSSubClass_70'      # Edificio Clase
+  ,'HouseStyle_SFoyer'
+  ,'BldgType_1Fam'
+  ,'BldgType_2fmCon'
+  ,'BldgType_Duplex'
+  ,'BldgType_Twnhs'
+  ,'BldgType_TwnhsE'
+  ,'RoofStyle_Gable'    # Edificio Techo
+  ,'RoofStyle_Hip'
+  ,'RoofMatl_WdShngl'
+  ,'Foundation_BrkTil'  # Edificio Material
+  ,'Foundation_CBlock'
+  ,'Foundation_PConc'
+  ,'Foundation_Slab')
+
+varSel <- as.data.frame(varSel)
+
+names(varSel) = "Campo"
+
+# Obtengo campos originales una vez trasformados
+dsCamposActuales <- data.frame(unlist(sapply(dsDataAll, class))) %>%
+  select(Tipo = 1) %>%
+  rownames_to_column("Campo")
+
+# Verifico que campos se han eliminado 
+anti_join(varSel,dsCamposActuales)
+
+# Selecciono los que existen 
+varSel <- inner_join(varSel,dsCamposActuales) %>%
+  select(Campo)
+
+dsDataAllSel <- select(dsDataAll,varSel$Campo)
+
+
+#Guardamos en el dataset dsDataAll los resultados
+dsDataAll <- cbind(dsDataAll[,1:3], dsDataAllSel)
+
+save(dsDataAll, file = './F02_Datos/F02_04_dsDataAll_SelManual.RData')
+
+```
 
 

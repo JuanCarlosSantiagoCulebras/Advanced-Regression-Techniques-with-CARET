@@ -1,6 +1,0 @@
-"0","# Presento estudio 
-fnEstudioModelo(modelo_glmnet)
-"
-"2","Error in fnEstudioModelo(modelo_glmnet) : 
-  could not find function ""fnEstudioModelo""
-"

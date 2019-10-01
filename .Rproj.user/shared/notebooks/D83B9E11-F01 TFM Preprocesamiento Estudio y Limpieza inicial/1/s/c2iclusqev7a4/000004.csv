@@ -1,8 +1,0 @@
-"0",""
-"0","dsDataAll$MSSubClass <- as.character(dsDataAll$MSSubClass)"
-"0",""
-"0","# Verifico que todos los campos caracter son Nominales u Ordinales"
-"0","dsCamposOriginales %>%"
-"0","  inner_join(dsCampos,  by = c(""Campo"")) %>%"
-"0","  select(Campo, Tipo.x, Tipo.y) %>%"
-"0","  filter(Tipo.y != ""Ordinal"" & Tipo.y != ""Nominal"" & Tipo.x == ""character"") "

@@ -1,8 +1,0 @@
-"0",""
-"0","## Parece que existe un valor extraño "
-"0","## Sin embargo existe la posibilidad de que sea una casa completamente de madera,"
-"0","## pero como el valor esta en el conjunto de test no se puede usar para entrenar "
-"0","## y el modelo resultante no podrá calcular precios para casas solo de madera, "
-"0","## por lo que actualizo el valor a la mediana según la superficie"
-"0",""
-"0","select(dsDataAll,Id,WoodDeckSF,GrLivArea) %>% filter(WoodDeckSF>1000)"

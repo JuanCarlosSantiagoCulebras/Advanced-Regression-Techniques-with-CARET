@@ -1,5 +1,0 @@
-"0",""
-"0","## Parece que existen un valor extraño en el conjunto de test, con una superficie muy grande"
-"0",""
-"0","## Asigno mediana segun el area  "
-"0","select(dsDataAll,Id,EnclosedPorch,GrLivArea) %>% filter(EnclosedPorch>600)"
